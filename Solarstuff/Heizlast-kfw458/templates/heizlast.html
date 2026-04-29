@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4 landscape; margin: 15mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 7.5pt; color: #000; }
+
+  h1 { font-size: 11pt; font-weight: bold; margin-bottom: 2px; }
+  .meta { font-size: 7.5pt; color: #444; margin-bottom: 10px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 0.5pt solid #bbb; padding: 3px 5px; vertical-align: middle; }
+  th { background: #e8e8e8; font-size: 7pt; text-align: center; font-weight: bold; }
+
+  td { text-align: right; }
+  td.left { text-align: left; }
+  td.center { text-align: center; }
+
+  tr.gs-header td {
+    background: #d0d8e8;
+    font-weight: bold;
+    font-size: 7.5pt;
+    text-align: left;
+    padding: 4px 6px;
+    border-top: 1pt solid #888;
+  }
+  tr.summe td {
+    background: #f0f0f0;
+    font-weight: bold;
+    border-top: 1pt solid #888;
+  }
+  tr.gesamt td {
+    background: #dde4f0;
+    font-weight: bold;
+    border-top: 1.5pt solid #444;
+  }
+
+  .hinweis { font-size: 7pt; color: #555; margin-top: 8px; }
+  .form { font-size: 6.5pt; color: #555; margin-top: 4px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>Heizlastberechnung DIN EN 12831  |  {{ projekt.auftraggeber }}</h1>
+<div class="meta">
+  θe = {{ parameter.theta_e }} °C  &nbsp;|&nbsp;
+  h_KG = {{ parameter.h_kg }} m  &nbsp;|&nbsp;
+  h_EG = {{ parameter.h_eg }} m  &nbsp;|&nbsp;
+  n_Wohn = {{ parameter.n_wohn }} h⁻¹  &nbsp;|&nbsp;
+  n_Feucht = {{ parameter.n_feucht }} h⁻¹
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Nr</th>
+      <th>Raum</th>
+      <th>GS</th>
+      <th>Fläche<br>(m²)</th>
+      <th>Höhe<br>(m)</th>
+      <th>θi<br>(°C)</th>
+      <th>Vol.<br>(m³)</th>
+      <th>n_min<br>(h⁻¹)</th>
+      <th>HT (W/K)<br>=Qt95/(θi−θe)</th>
+      <th>HV (W/K)<br>=ρcp×n×V</th>
+      <th>ΦHL (W)<br>=(HT+HV)×Δθ</th>
+      <th>Qt 1995<br>(W)</th>
+      <th>Ql 1995<br>(W)</th>
+      <th>QN 1995<br>(W)</th>
+      <th>Diff<br>(W)</th>
+    </tr>
+  </thead>
+  <tbody>
+
+    {# ── Keller ──────────────────────────────────────────── #}
+    <tr class="gs-header">
+      <td colspan="15">── Keller  (h = {{ parameter.h_kg }} m)</td>
+    </tr>
+    {% for r in raeume if r.gs == "KG" %}
+    <tr>
+      <td class="center">{{ r.nr }}</td>
+      <td class="left">{{ r.name }}</td>
+      <td class="center">{{ r.gs }}</td>
+      <td>{{ "%.2f"|format(r.flaeche) }}</td>
+      <td>{{ r.h }}</td>
+      <td>{{ r.theta_i }}</td>
+      <td>{{ "%.2f"|format(r.vol) }}</td>
+      <td>{{ r.n_min }}</td>
+      <td>{{ "%.5f"|format(r.ht) }}</td>
+      <td>{{ "%.4f"|format(r.hv) }}</td>
+      <td><strong>{{ "%.4f"|format(r.phi_hl) }}</strong></td>
+      <td>{{ r.qt_1995 if r.qt_1995 is not none else "–" }}</td>
+      <td>{{ r.ql_1995 if r.ql_1995 is not none else "–" }}</td>
+      <td>{{ r.qn_1995 }}</td>
+      <td>{{ "%.4f"|format(r.phi_hl - r.qn_1995) }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="summe">
+      <td colspan="3" class="left">Σ KELLER</td>
+      <td>{{ "%.2f"|format(summen.kg.flaeche) }}</td>
+      <td>–</td><td>–</td>
+      <td>{{ "%.2f"|format(summen.kg.vol) }}</td>
+      <td colspan="3">–</td>
+      <td><strong>{{ "%.4f"|format(summen.kg.phi_hl) }}</strong></td>
+      <td colspan="2">–</td>
+      <td>{{ "%.0f"|format(summen.kg.qn_1995) }}</td>
+      <td>–</td>
+    </tr>
+
+    {# ── Erdgeschoss ──────────────────────────────────────── #}
+    <tr class="gs-header">
+      <td colspan="15">── Erdgeschoss  (h = {{ parameter.h_eg }} m)</td>
+    </tr>
+    {% for r in raeume if r.gs == "EG" %}
+    <tr>
+      <td class="center">{{ r.nr }}</td>
+      <td class="left">{{ r.name }}</td>
+      <td class="center">{{ r.gs }}</td>
+      <td>{{ "%.2f"|format(r.flaeche) }}</td>
+      <td>{{ r.h }}</td>
+      <td>{{ r.theta_i }}</td>
+      <td>{{ "%.2f"|format(r.vol) }}</td>
+      <td>{{ r.n_min }}</td>
+      <td>{{ "%.5f"|format(r.ht) }}</td>
+      <td>{{ "%.4f"|format(r.hv) }}</td>
+      <td><strong>{{ "%.4f"|format(r.phi_hl) }}</strong></td>
+      <td>{{ r.qt_1995 if r.qt_1995 is not none else "–" }}</td>
+      <td>{{ r.ql_1995 if r.ql_1995 is not none else "–" }}</td>
+      <td>{{ r.qn_1995 }}</td>
+      <td>{{ "%.4f"|format(r.phi_hl - r.qn_1995) }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="summe">
+      <td colspan="3" class="left">Σ ERDGESCHOSS</td>
+      <td>{{ "%.2f"|format(summen.eg.flaeche) }}</td>
+      <td>–</td><td>–</td>
+      <td>{{ "%.2f"|format(summen.eg.vol) }}</td>
+      <td colspan="3">–</td>
+      <td><strong>{{ "%.4f"|format(summen.eg.phi_hl) }}</strong></td>
+      <td colspan="2">–</td>
+      <td>{{ "%.0f"|format(summen.eg.qn_1995) }}</td>
+      <td>–</td>
+    </tr>
+
+    {# ── Gesamt ───────────────────────────────────────────── #}
+    <tr class="gesamt">
+      <td colspan="3" class="left">ΣΣΣΣ GESAMT</td>
+      <td>{{ "%.2f"|format(summen.gesamt.flaeche) }}</td>
+      <td>–</td><td>–</td>
+      <td>{{ "%.2f"|format(summen.gesamt.vol) }}</td>
+      <td colspan="3">–</td>
+      <td><strong>{{ "%.4f"|format(summen.gesamt.phi_hl) }}</strong></td>
+      <td colspan="2">–</td>
+      <td>{{ "%.0f"|format(summen.gesamt.qn_1995) }}</td>
+      <td>–</td>
+    </tr>
+
+  </tbody>
+</table>
+
+<div class="form">
+  HT = Qt_1995 / (θi − θe)  &nbsp;|&nbsp;
+  HV = ρcp_L × n_min × V  &nbsp;|&nbsp;
+  ΦHL = (HT + HV) × (θi − θe)  &nbsp;|&nbsp;
+  Alle Parameter → daten.py → PARAMETER
+</div>
+
+</body>
+</html>

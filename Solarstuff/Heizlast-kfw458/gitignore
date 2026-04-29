@@ -1,0 +1,11 @@
+# Private Projektdaten — NICHT auf GitHub
+daten.py
+
+# Generierte Ausgaben
+output/
+*.pdf
+
+# Python
+__pycache__/
+*.pyc
+.DS_Store
