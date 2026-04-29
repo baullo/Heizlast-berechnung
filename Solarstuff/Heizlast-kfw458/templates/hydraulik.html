@@ -42,7 +42,7 @@
   .klein  { color: #c00000; }
   .mitgh  { color: #777; font-style: italic; }
 
-  .eingabe { background: #ffffc0; }  /* gelbes Eingabefeld – Ventileinstellwert */
+  .eingabe { background: #ffffc0; }
 
   .form { font-size: 6pt; color: #555; margin-top: 8px; font-style: italic; }
 </style>
@@ -66,7 +66,6 @@
       <th rowspan="2">Raum</th>
       <th rowspan="2">GS</th>
       <th rowspan="2">θi<br>(°C)</th>
-      <th rowspan="2">QN95<br>(W)</th>
       <th rowspan="2">ΦHL<br>EN12831<br>(W)</th>
       <th colspan="4">Wärmeübertrager – EN442 Leistungskorrektur bei VL/RL</th>
       <th colspan="3">Wandheizung</th>
@@ -74,8 +73,9 @@
       <th rowspan="2">Reserve<br>(W)</th>
       <th rowspan="2">OK?</th>
       <th rowspan="2">Q_Ausl.<br>(W)</th>
-      <th rowspan="2">ṁ<br>(l/h)</th>
-      <th rowspan="2" class="eingabe">Ventil<br>Einstell-<br>wert ←</th>
+      <th rowspan="2">V_soll<br>(l/h)</th>
+      <th rowspan="2" class="eingabe">ve<br>Ventil-<br>einst.</th>
+      <th rowspan="2">dp<br>(mbar)</th>
       <th rowspan="2">Bemerkung</th>
     </tr>
     <tr>
@@ -90,134 +90,84 @@
   </thead>
   <tbody>
 
-    {# ── Keller ──────────────────────────────────────────── #}
+  {% for gs in geschosse %}
     <tr class="gs-header">
-      <td colspan="20">── Keller</td>
+      <td colspan="21">── {{ gs }}</td>
     </tr>
-    {% for r in raeume if r.gs == "KG" %}
+
+    {% for r in raeume if r.gs == gs %}
     <tr>
       <td class="center">{{ r.nr }}</td>
       <td class="left">{{ r.name }}</td>
       <td class="center">{{ r.gs }}</td>
       <td class="center">{{ r.theta_i }}</td>
-      <td>{{ r.qn_1995 }}</td>
-      <td>{{ "%.4f"|format(r.phi_hl) }}</td>
+      <td>{{ "%.0f"|format(r.phi_hl) }}</td>
 
       {# HK-Spalten #}
       <td class="left">
-        {% if r.mehrere_hk %}{{ r.mehrere_hk }}
-        {% elif r.hk_typ and r.hk_typ != "Wand" %}
-          {{ r.hk_typ }}
-          {% if r.hk_breite %} {{ r.hk_breite }}×{{ r.hk_hoehe }}{% endif %}
+        {% if r.mehrere_hk %}
+          {% for hk in r.mehrere_hk %}{{ hk.hk_typ }} {{ hk.hk_breite }}×{{ hk.hk_hoehe }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+        {% elif r.hk_typ %}
+          {{ r.hk_typ }}{% if r.hk_breite %} {{ r.hk_breite }}×{{ r.hk_hoehe }}{% endif %}
         {% else %}–{% endif %}
       </td>
-      <td>{{ r.hk_q_norm if r.hk_q_norm else "–" }}</td>
+      <td>
+        {% if r.mehrere_hk %}
+          {% for hk in r.mehrere_hk %}{{ hk.hk_q_norm if hk.hk_q_norm else "–" }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+        {% else %}{{ r.hk_q_norm if r.hk_q_norm else "–" }}{% endif %}
+      </td>
       <td>{{ r.n_exp if r.n_exp else "–" }}</td>
-      <td>{{ "%.2f"|format(r.q_wp_hk) if r.q_wp_hk else "–" }}</td>
+      <td>{{ "%.0f"|format(r.q_wp_hk) if r.q_wp_hk else "–" }}</td>
 
       {# Wand-Spalten #}
       <td>{{ r.wand_fl if r.wand_fl else "–" }}</td>
-      <td>{{ "%.2f"|format(r.q_wp_wand) if r.q_wp_wand else "–" }}</td>
+      <td>{{ "%.0f"|format(r.q_wp_wand) if r.q_wp_wand else "–" }}</td>
       <td>{{ r.dt_neu }}</td>
 
       {# Ergebnis-Spalten #}
-      <td>{{ "%.2f"|format(r.q_wp_gesamt) }}</td>
+      <td>{{ "%.0f"|format(r.q_wp_gesamt) }}</td>
       <td>
-        {% if r.reserve >= 0 %}<span class="ok">+{{ "%.1f"|format(r.reserve) }}</span>
-        {% else %}<span class="klein">{{ "%.1f"|format(r.reserve) }}</span>{% endif %}
+        {% if r.reserve >= 0 %}<span class="ok">+{{ "%.0f"|format(r.reserve) }}</span>
+        {% else %}<span class="klein">{{ "%.0f"|format(r.reserve) }}</span>{% endif %}
       </td>
       <td class="center">
-        {% if r.status == "✓ OK" %}<span class="ok">✓ OK</span>
-        {% elif r.status == "~ Grenz" %}<span class="grenz">~ Grenz</span>
-        {% elif r.status == "✗ zu klein" %}<span class="klein">✗ zu klein</span>
-        {% else %}<span class="mitgh">{{ r.status }}</span>{% endif %}
+        {% if r.status == "✓ OK" %}<span class="ok">✓</span>
+        {% elif r.status == "~ Grenz" %}<span class="grenz">~</span>
+        {% elif r.status == "✗ zu klein" %}<span class="klein">✗</span>
+        {% else %}<span class="mitgh">○</span>{% endif %}
       </td>
-      <td>{{ "%.2f"|format(r.q_ausl) }}</td>
-      <td>{{ "%.2f"|format(r.massenstrom) }}</td>
-      <td class="eingabe center">____</td>
+      <td>{{ "%.0f"|format(r.q_ausl) }}</td>
+      <td>{{ "%.1f"|format(r.v_soll) }}</td>
+      <td class="eingabe center">{{ r.ve if r.ve is not none else "–" }}</td>
+      <td class="center">{{ r.dp if r.dp is not none else "–" }}</td>
       <td class="left">{{ r.bemerkung if r.bemerkung else "" }}</td>
     </tr>
     {% endfor %}
+
     <tr class="summe">
-      <td colspan="4" class="left">SUMME KELLER</td>
-      <td>{{ "%.0f"|format(summen.kg.qn_1995) }}</td>
-      <td>{{ "%.0f"|format(summen.kg.phi_hl) }}</td>
-      <td colspan="8">–</td>
-      <td>{{ "%.0f"|format(summen.kg.q_wp_gesamt) }}</td>
+      <td colspan="3" class="left">SUMME {{ gs }}</td>
+      <td>–</td>
+      <td>{{ "%.0f"|format(summen[gs].phi_hl) }}</td>
+      <td colspan="9">–</td>
+      <td>{{ "%.0f"|format(summen[gs].q_wp_gesamt) }}</td>
       <td>–</td><td>–</td>
       <td>–</td>
-      <td>{{ "%.1f"|format(summen.kg.massenstrom) }}</td>
-      <td colspan="2">–</td>
+      <td>{{ "%.1f"|format(summen[gs].v_soll) }}</td>
+      <td colspan="3">–</td>
     </tr>
+  {% endfor %}
 
-    {# ── Erdgeschoss ──────────────────────────────────────── #}
-    <tr class="gs-header">
-      <td colspan="20">── Erdgeschoss</td>
-    </tr>
-    {% for r in raeume if r.gs == "EG" %}
-    <tr>
-      <td class="center">{{ r.nr }}</td>
-      <td class="left">{{ r.name }}</td>
-      <td class="center">{{ r.gs }}</td>
-      <td class="center">{{ r.theta_i }}</td>
-      <td>{{ r.qn_1995 }}</td>
-      <td>{{ "%.4f"|format(r.phi_hl) }}</td>
-
-      <td class="left">
-        {% if r.mehrere_hk %}{{ r.mehrere_hk }}
-        {% elif r.hk_typ and r.hk_typ != "Wand" %}
-          {{ r.hk_typ }}
-          {% if r.hk_breite %} {{ r.hk_breite }}×{{ r.hk_hoehe }}{% endif %}
-        {% else %}–{% endif %}
-      </td>
-      <td>{{ r.hk_q_norm if r.hk_q_norm else "–" }}</td>
-      <td>{{ r.n_exp if r.n_exp else "–" }}</td>
-      <td>{{ "%.2f"|format(r.q_wp_hk) if r.q_wp_hk else "–" }}</td>
-
-      <td>{{ r.wand_fl if r.wand_fl else "–" }}</td>
-      <td>{{ "%.2f"|format(r.q_wp_wand) if r.q_wp_wand else "–" }}</td>
-      <td>{{ r.dt_neu }}</td>
-
-      <td>{{ "%.2f"|format(r.q_wp_gesamt) }}</td>
-      <td>
-        {% if r.reserve >= 0 %}<span class="ok">+{{ "%.1f"|format(r.reserve) }}</span>
-        {% else %}<span class="klein">{{ "%.1f"|format(r.reserve) }}</span>{% endif %}
-      </td>
-      <td class="center">
-        {% if r.status == "✓ OK" %}<span class="ok">✓ OK</span>
-        {% elif r.status == "~ Grenz" %}<span class="grenz">~ Grenz</span>
-        {% elif r.status == "✗ zu klein" %}<span class="klein">✗ zu klein</span>
-        {% else %}<span class="mitgh">{{ r.status }}</span>{% endif %}
-      </td>
-      <td>{{ "%.2f"|format(r.q_ausl) }}</td>
-      <td>{{ "%.2f"|format(r.massenstrom) }}</td>
-      <td class="eingabe center">____</td>
-      <td class="left">{{ r.bemerkung if r.bemerkung else "" }}</td>
-    </tr>
-    {% endfor %}
-    <tr class="summe">
-      <td colspan="4" class="left">SUMME ERDGESCHOSS</td>
-      <td>{{ "%.0f"|format(summen.eg.qn_1995) }}</td>
-      <td>{{ "%.0f"|format(summen.eg.phi_hl) }}</td>
-      <td colspan="8">–</td>
-      <td>{{ "%.0f"|format(summen.eg.q_wp_gesamt) }}</td>
-      <td>–</td><td>–</td>
-      <td>–</td>
-      <td>{{ "%.1f"|format(summen.eg.massenstrom) }}</td>
-      <td colspan="2">–</td>
-    </tr>
-
-    {# ── Gesamt ───────────────────────────────────────────── #}
+    {# ── Gesamt ── #}
     <tr class="gesamt">
-      <td colspan="4" class="left">SUMME GEBÄUDE</td>
-      <td>{{ "%.0f"|format(summen.gesamt.qn_1995) }}</td>
+      <td colspan="3" class="left">SUMME GEBÄUDE</td>
+      <td>–</td>
       <td>{{ "%.0f"|format(summen.gesamt.phi_hl) }}</td>
-      <td colspan="8">–</td>
+      <td colspan="9">–</td>
       <td>{{ "%.0f"|format(summen.gesamt.q_wp_gesamt) }}</td>
       <td>–</td><td>–</td>
       <td>–</td>
-      <td>{{ "%.1f"|format(summen.gesamt.massenstrom) }}</td>
-      <td colspan="2">–</td>
+      <td>{{ "%.1f"|format(summen.gesamt.v_soll) }}</td>
+      <td colspan="3">–</td>
     </tr>
 
   </tbody>
@@ -228,7 +178,7 @@
   ΔT_neu = tm − θi  &nbsp;|&nbsp;
   ΔT_norm = {{ parameter.dt_norm }} K  ({{ parameter.vl_norm }}/{{ parameter.rl_norm }}/{{ parameter.ti_norm }})  &nbsp;|&nbsp;
   Q_WP_Wand = Fläche × {{ "%.3f"|format(parameter.hypo_steig) }} W/(m²·K) × ΔT_neu  &nbsp;|&nbsp;
-  ṁ = Q_Ausl / {{ "%.3f"|format(parameter.div_vol) }} Wh/l
+  V_soll = Q_Ausl / {{ "%.3f"|format(parameter.div_vol) }} Wh/l
 </div>
 
 </body>

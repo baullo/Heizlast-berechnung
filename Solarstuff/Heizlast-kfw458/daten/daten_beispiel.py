@@ -60,8 +60,6 @@ PARAMETER = {
 #     typ       Kürzel: "AW"=Außenwand, "FE"=Fenster, "DE"=Decke,
 #                       "FB"=Fußboden, "IW"=Innenwand (kein Verlust)
 #     name      Freitext z.B. "Außenwand Nord", "Fenster Süd"
-#     breite    m  (nur für Außenwände – für Flächenberechnung)
-#     hoehe     m  (nur für Außenwände)
 #     a_netto   m²  Nettofläche (Fenster etc. bereits abgezogen)
 #                   → bei Fenstern: direkte Fensterfläche eintragen
 #                   → bei Wänden: Wandfläche OHNE Fenster
@@ -79,12 +77,23 @@ PARAMETER = {
 #     Bodenplatte          ~0.5   gedämmt:   ~0.25
 #
 #   HEIZKÖRPER-Felder:
-#     hk_typ      "Typ10", "Typ11", "Typ21", "Wand", None (mitgeheizt)
+#     hk_typ      "Typ10", "Typ11", "Typ21", "Typ22", None (mitgeheizt)
 #     hk_breite   mm  (aus Katalog)
 #     hk_hoehe    mm  (aus Katalog)
-#     hk_q_norm   W bei 75/65/20  (aus Katalog)  ← EINGABE
-#     wand_fl     m²  Wandheizfläche (nur bei Wandheizung)
-#     mehrere_hk  Freitext falls mehrere HK
+#     hk_q_norm   W bei 75/65/20  (aus Katalog)  ← EINGABE, None bis Katalog vorliegt
+#     wand_fl     m²  Wandheizfläche (nur bei Wandheizung, sonst 0)
+#     mehrere_hk  Liste von HK-Dicts falls mehrere HK im Raum, sonst None
+#                 Format: [{"hk_typ": "Typ11", "hk_breite": 1800,
+#                           "hk_hoehe": 600, "hk_q_norm": None}, ...]
+#
+#   HYDRAULIK-Felder (hydraulischer Abgleich):
+#     ve          Voreinstellwert Thermostatventil  ← EINGABE nach Rohrnetzberechnung
+#                 None bis Rohrnetzberechnung vorliegt
+#     dp          Druckverlust des Kreises [mbar]   ← EINGABE nach Rohrnetzberechnung
+#                 None bis Rohrnetzberechnung vorliegt
+#     v_soll      Soll-Volumenstrom [l/h]           ← wird vom Script berechnet
+#                 (= q_ausl / rcp_wasser / spreizung), hier immer None lassen
+#
 #     bemerkung   Freitext
 
 RAEUME = [
@@ -100,13 +109,21 @@ RAEUME = [
             {"typ": "FE", "name": "FE Süd 1", "a_netto": 2.1,  "u_wert": 1.10, "fx": 1.0},
             {"typ": "FE", "name": "FE Süd 2", "a_netto": 1.5,  "u_wert": 1.10, "fx": 1.0},
             {"typ": "FE", "name": "FE West",  "a_netto": 1.0,  "u_wert": 1.10, "fx": 1.0},
-            # Decke (grenzt an beheiztes OG → kein Verlust; an Außenluft → fx=1.0)
+            # Decke (grenzt an Außenluft → fx=1.0; an beheiztes OG → fx=0.0)
             {"typ": "DE", "name": "Decke",    "a_netto": 25.0, "u_wert": 0.20, "fx": 1.0},
-            # Boden (grenzt an unbeheizten Keller → fx=0.5)
+            # Boden (grenzt an unbeheizten Keller → fx=0.5; an beheizten Keller → fx=0.0)
             {"typ": "FB", "name": "Boden",    "a_netto": 25.0, "u_wert": 0.35, "fx": 0.5},
         ],
-        "hk_typ": "Typ11", "hk_breite": 1800, "hk_hoehe": 600, "hk_q_norm": 1480,
-        "wand_fl": 0, "mehrere_hk": None, "bemerkung": None,
+        "hk_typ":    "Typ11",
+        "hk_breite": 1800,
+        "hk_hoehe":  600,
+        "hk_q_norm": 1480,       # W bei 75/65/20 – aus Katalog
+        "wand_fl":   0,
+        "mehrere_hk": None,
+        "ve":        None,        # ← nach Rohrnetzberechnung eintragen
+        "dp":        None,        # ← nach Rohrnetzberechnung eintragen
+        "v_soll":    None,        # ← wird berechnet, hier None lassen
+        "bemerkung": None,
     },
     {
         "nr": 0.002, "name": "Küche", "gs": "EG",
@@ -117,8 +134,16 @@ RAEUME = [
             {"typ": "DE", "name": "Decke",    "a_netto": 12.0, "u_wert": 0.20, "fx": 1.0},
             {"typ": "FB", "name": "Boden",    "a_netto": 12.0, "u_wert": 0.35, "fx": 0.5},
         ],
-        "hk_typ": "Typ11", "hk_breite": 800, "hk_hoehe": 600, "hk_q_norm": 660,
-        "wand_fl": 0, "mehrere_hk": None, "bemerkung": None,
+        "hk_typ":    "Typ11",
+        "hk_breite": 800,
+        "hk_hoehe":  600,
+        "hk_q_norm": 660,
+        "wand_fl":   0,
+        "mehrere_hk": None,
+        "ve":        None,
+        "dp":        None,
+        "v_soll":    None,
+        "bemerkung": None,
     },
     {
         "nr": 0.003, "name": "Bad", "gs": "EG",
@@ -129,7 +154,15 @@ RAEUME = [
             {"typ": "DE", "name": "Decke",    "a_netto": 6.0,  "u_wert": 0.20, "fx": 1.0},
             {"typ": "FB", "name": "Boden",    "a_netto": 6.0,  "u_wert": 0.35, "fx": 0.5},
         ],
-        "hk_typ": "Typ11", "hk_breite": 600, "hk_hoehe": 600, "hk_q_norm": 490,
-        "wand_fl": 0, "mehrere_hk": None, "bemerkung": None,
+        "hk_typ":    "Typ11",
+        "hk_breite": 600,
+        "hk_hoehe":  600,
+        "hk_q_norm": 490,
+        "wand_fl":   0,
+        "mehrere_hk": None,
+        "ve":        None,
+        "dp":        None,
+        "v_soll":    None,
+        "bemerkung": None,
     },
 ]

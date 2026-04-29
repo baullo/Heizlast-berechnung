@@ -11,7 +11,6 @@
   h2  { font-size: 9pt;  font-weight: bold; margin-bottom: 3px; }
   .meta { font-size: 7pt; color: #444; margin-bottom: 12px; }
 
-  /* ── Raumblock ── */
   .raum {
     border: 0.5pt solid #999;
     margin-bottom: 12px;
@@ -28,7 +27,6 @@
   .raum-header .titel { font-weight: bold; font-size: 9pt; }
   .raum-header .meta  { font-size: 7pt; color: #333; margin: 0; }
 
-  /* ── Kennwerte (2 Spalten) ── */
   .kennwerte {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -41,7 +39,6 @@
   .kw-label { color: #555; width: 130px; }
   .kw-val   { font-weight: bold; }
 
-  /* ── Bauteiltabelle ── */
   table.bauteile {
     width: 100%;
     border-collapse: collapse;
@@ -67,7 +64,6 @@
     color: #555;
   }
 
-  /* ── Ergebniszeile ── */
   .ergebnis {
     display: flex;
     justify-content: flex-end;
@@ -83,7 +79,6 @@
   .ergebnis .hl    { font-size: 10pt; font-weight: bold;
                      border: 1pt solid #333; padding: 1px 8px; }
 
-  /* ── Geschoss-Trennzeile ── */
   .gs-header {
     background: #d4dff0;
     font-weight: bold;
@@ -93,7 +88,6 @@
     border-left: 3pt solid #4a6fa5;
   }
 
-  /* ── Summentabelle ── */
   table.summen {
     width: 100%;
     border-collapse: collapse;
@@ -136,7 +130,6 @@
 {% for r in raeume if r.gs == gs %}
 <div class="raum">
 
-  {# ── Raumkopf ── #}
   <div class="raum-header">
     <span class="titel">{{ r.nr }}  {{ r.name }}</span>
     <span class="meta">
@@ -149,7 +142,6 @@
     </span>
   </div>
 
-  {# ── Bauteiltabelle ── #}
   <table class="bauteile">
     <thead>
       <tr>
@@ -174,7 +166,6 @@
         <td><strong>{{ "%.2f"|format(bt.phi_t) }}</strong></td>
       </tr>
       {% endfor %}
-      {# Summenzeile Transmission #}
       <tr style="background:#f5f5f5; font-weight:bold; border-top:0.5pt solid #999">
         <td colspan="5" class="left" style="padding-left:8px">
           HT = Σ(A×U×fx) = {{ "%.4f"|format(r.ht) }} W/K
@@ -182,7 +173,6 @@
         <td></td>
         <td>{{ "%.2f"|format(r.ht * (r.theta_i - parameter.theta_e)) }}</td>
       </tr>
-      {# Lüftung #}
       <tr style="background:#fafafa">
         <td class="typ" style="color:#888">LÜ</td>
         <td class="left" style="color:#555">
@@ -195,7 +185,6 @@
     </tbody>
   </table>
 
-  {# ── Heizlast-Ergebnis ── #}
   <div class="ergebnis">
     <div class="item">
       <span class="label">HT</span>
@@ -223,7 +212,6 @@
 {% endfor %}
 {% endfor %}
 
-{# ── Gesamtübersicht ── #}
 <table class="summen">
   <thead>
     <tr>

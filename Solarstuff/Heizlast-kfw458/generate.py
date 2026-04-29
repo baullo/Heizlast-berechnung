@@ -30,7 +30,7 @@ Berechnungsformeln EN 12831:
 
   Volumenstrom:
     Q_Ausl = min(Q_WP_Gesamt, ΦHL)
-    ṁ      = Q_Ausl / (ρcp_Wasser × Spreizung)
+    ṁ      = Q_Ausl / (ρcp_Wasser × Spreizung)   [l/h]
 """
 
 import sys
@@ -117,10 +117,22 @@ def berechne_raum(raum, p):
 
     # ── EN 442 Heizkörperkorrektur ────────────────────────
     dt_neu  = round(p["tm"] - ti, 1)
-    n_exp   = n_exponent(raum["hk_typ"], p)
     q_wp_hk = 0.0
-    if raum["hk_typ"] in ("Typ10", "Typ11", "Typ21") and raum.get("hk_q_norm") and n_exp:
-        q_wp_hk = round(raum["hk_q_norm"] * (dt_neu / p["dt_norm"]) ** n_exp, 2)
+
+    # Alle HK sammeln (mehrere_hk hat Vorrang)
+    hk_liste = raum.get("mehrere_hk") or []
+    if not hk_liste and raum["hk_typ"] is not None:
+        hk_liste = [{"hk_typ": raum["hk_typ"],
+                     "hk_q_norm": raum.get("hk_q_norm")}]
+
+    for hk in hk_liste:
+        n_exp_hk = n_exponent(hk["hk_typ"], p)
+        q_norm   = hk.get("hk_q_norm")
+        if hk["hk_typ"] in ("Typ10", "Typ11", "Typ21", "Typ22") and q_norm and n_exp_hk:
+            q_wp_hk += round(q_norm * (dt_neu / p["dt_norm"]) ** n_exp_hk, 2)
+
+    q_wp_hk = round(q_wp_hk, 2)
+    n_exp = n_exponent(raum["hk_typ"], p)  # für Template-Ausgabe (erster HK)
 
     # ── Wandheizung ───────────────────────────────────────
     q_wp_wand = 0.0
@@ -140,9 +152,13 @@ def berechne_raum(raum, p):
     else:
         status = "✗ zu klein"
 
-    # ── Volumenstrom ──────────────────────────────────────
-    q_ausl      = round(min(q_wp_gesamt, phi_hl) if phi_hl > 0 else q_wp_gesamt, 2)
-    massenstrom = round(q_ausl / p["div_vol"], 2) if p["div_vol"] > 0 else 0
+    # ── Volumenstrom (v_soll wird berechnet, ve/dp kommen aus Eingabe) ────────
+    q_ausl  = round(min(q_wp_gesamt, phi_hl) if phi_hl > 0 else q_wp_gesamt, 2)
+    v_soll  = round(q_ausl / p["div_vol"], 2) if p["div_vol"] > 0 else 0.0
+
+    # ve und dp: aus Eingabe übernehmen (None bis Rohrnetzberechnung vorliegt)
+    ve = raum.get("ve")   # Voreinstellwert Thermostatventil
+    dp = raum.get("dp")   # Druckverlust mbar
 
     return {
         **raum,
@@ -154,7 +170,12 @@ def berechne_raum(raum, p):
         "q_wp_hk": q_wp_hk, "q_wp_wand": q_wp_wand,
         "q_wp_gesamt": q_wp_gesamt, "reserve": reserve,
         "status": status,
-        "q_ausl": q_ausl, "massenstrom": massenstrom,
+        "q_ausl": q_ausl,
+        "v_soll": v_soll,   # berechnet
+        "ve":     ve,        # Eingabe
+        "dp":     dp,        # Eingabe
+        # Rückwärtskompatibilität: massenstrom = v_soll
+        "massenstrom": v_soll,
     }
 
 
@@ -171,12 +192,12 @@ def berechne_alle(raeume, parameter):
 
     # Summen pro Geschoss + Gesamt
     summen = {"gesamt": {k: summe(k) for k in
-                         ["flaeche","vol","ht","hv","phi_hl",
-                          "q_wp_gesamt","q_ausl","massenstrom"]}}
+                         ["flaeche", "vol", "ht", "hv", "phi_hl",
+                          "q_wp_gesamt", "q_ausl", "v_soll", "massenstrom"]}}
     for gs in geschosse:
         summen[gs] = {k: summe(k, gs) for k in
-                      ["flaeche","vol","ht","hv","phi_hl",
-                       "q_wp_gesamt","q_ausl","massenstrom"]}
+                      ["flaeche", "vol", "ht", "hv", "phi_hl",
+                       "q_wp_gesamt", "q_ausl", "v_soll", "massenstrom"]}
 
     return ergebnis, summen, p, geschosse
 
@@ -212,4 +233,4 @@ if __name__ == "__main__":
     print()
     print(f"  Gesamtheizlast ΦHL:  {summen['gesamt']['phi_hl']:>8.0f} W")
     print(f"  Q_WP gesamt:         {summen['gesamt']['q_wp_gesamt']:>8.0f} W")
-    print(f"  Volumenstrom ges.:   {summen['gesamt']['massenstrom']:>8.1f} l/h")
+    print(f"  V_soll gesamt:       {summen['gesamt']['v_soll']:>8.1f} l/h")

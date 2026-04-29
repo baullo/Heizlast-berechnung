@@ -46,6 +46,7 @@
   <tr><th>Rücklauftemperatur RL</th>      <td class="val">{{ parameter.rl }} °C</td></tr>
   <tr><th>Mittlere HW-Temperatur tm</th>  <td class="val">{{ parameter.tm }} °C</td></tr>
   <tr><th>Norm-Außentemperatur θe</th>    <td class="val">{{ parameter.theta_e }} °C</td></tr>
+  <tr><th>Spreizung</th>                  <td class="val">{{ parameter.dt_spreiz }} K</td></tr>
 </table>
 
 <h3>Gesamtergebnis</h3>
@@ -54,32 +55,24 @@
     <tr>
       <th style="text-align:left">Bereich</th>
       <th>ΦHL EN12831 (W)</th>
-      <th>QN 1995 (W)</th>
       <th>Q_WP gesamt (W)</th>
-      <th>ṁ gesamt (l/h)</th>
+      <th>V_soll gesamt (l/h)</th>
     </tr>
   </thead>
   <tbody>
+    {% for gs in geschosse %}
     <tr>
-      <td class="label">Keller KG</td>
-      <td>{{ "%.0f"|format(summen.kg.phi_hl) }}</td>
-      <td>{{ "%.0f"|format(summen.kg.qn_1995) }}</td>
-      <td>{{ "%.0f"|format(summen.kg.q_wp_gesamt) }}</td>
-      <td>{{ "%.1f"|format(summen.kg.massenstrom) }}</td>
+      <td class="label">{{ gs }}</td>
+      <td>{{ "%.0f"|format(summen[gs].phi_hl) }}</td>
+      <td>{{ "%.0f"|format(summen[gs].q_wp_gesamt) }}</td>
+      <td>{{ "%.1f"|format(summen[gs].v_soll) }}</td>
     </tr>
-    <tr>
-      <td class="label">Erdgeschoss EG</td>
-      <td>{{ "%.0f"|format(summen.eg.phi_hl) }}</td>
-      <td>{{ "%.0f"|format(summen.eg.qn_1995) }}</td>
-      <td>{{ "%.0f"|format(summen.eg.q_wp_gesamt) }}</td>
-      <td>{{ "%.1f"|format(summen.eg.massenstrom) }}</td>
-    </tr>
+    {% endfor %}
     <tr class="gesamt">
       <td class="label">Gesamt</td>
       <td>{{ "%.0f"|format(summen.gesamt.phi_hl) }}</td>
-      <td>{{ "%.0f"|format(summen.gesamt.qn_1995) }}</td>
       <td>{{ "%.0f"|format(summen.gesamt.q_wp_gesamt) }}</td>
-      <td>{{ "%.1f"|format(summen.gesamt.massenstrom) }}</td>
+      <td>{{ "%.1f"|format(summen.gesamt.v_soll) }}</td>
     </tr>
   </tbody>
 </table>
