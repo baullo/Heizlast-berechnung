@@ -1,5 +1,6 @@
 # Private Projektdaten — NICHT auf GitHub
-daten.py
+daten/daten_*.py
+!daten/daten_beispiel.py
 
 # Generierte Ausgaben
 output/
