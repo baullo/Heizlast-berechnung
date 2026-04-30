@@ -31,6 +31,12 @@ Berechnungsformeln EN 12831:
   Volumenstrom:
     Q_Ausl = min(Q_WP_Gesamt, ΦHL)
     ṁ      = Q_Ausl / (ρcp_Wasser × Spreizung)   [l/h]
+
+  Ventil-Voreinstellung (Heimeier V-Exact II, max. Stufe 6):
+    kv_ben  = (v_soll / 1000) / √(dp / 100)      [m³/h]
+    ve      = kleinste Stufe mit kv(ve) ≥ kv_ben
+    kv-Tabelle Stufe 1–6: [0.04, 0.10, 0.19, 0.32, 0.50, 0.82]
+    Voraussetzung: dp [mbar] pro Heizkörper bekannt (Rohrnetzberechnung)
 """
 
 import sys
@@ -82,6 +88,26 @@ def n_exponent(hk_typ, p):
             "Typ22": p["n_typ22"]}.get(hk_typ)
 
 
+# kv-Werte Heimeier V-Exact II, Stufen 1–6  [m³/h]
+_KV_HEIMEIER = [0.04, 0.10, 0.19, 0.32, 0.50, 0.82]
+
+def berechne_ve(v_soll_lh, dp_mbar):
+    """
+    Gibt Voreinstellstufe 1–6 (Heimeier V-Exact II) zurück.
+    v_soll_lh : benötigter Volumenstrom [l/h]
+    dp_mbar   : verfügbarer Differenzdruck am Ventil [mbar]
+    Gibt None zurück wenn dp fehlt oder v_soll=0.
+    """
+    if not dp_mbar or not v_soll_lh or v_soll_lh <= 0 or dp_mbar <= 0:
+        return None
+    import math
+    kv_ben = (v_soll_lh / 1000.0) / math.sqrt(dp_mbar / 100.0)
+    for stufe, kv in enumerate(_KV_HEIMEIER, start=1):
+        if kv >= kv_ben:
+            return stufe
+    return 6  # größer als max → voll auf
+
+
 def berechne_raum(raum, p):
     gs   = raum["gs"]
     h    = p["h_kg"] if gs == "KG" else p["h_eg"]
@@ -119,20 +145,21 @@ def berechne_raum(raum, p):
     dt_neu  = round(p["tm"] - ti, 1)
     q_wp_hk = 0.0
 
-    # Alle HK sammeln (mehrere_hk hat Vorrang)
-    hk_liste = raum.get("mehrere_hk") or []
-    if not hk_liste and raum["hk_typ"] is not None:
-        hk_liste = [{"hk_typ": raum["hk_typ"],
-                     "hk_q_norm": raum.get("hk_q_norm")}]
+    hk_liste = raum.get("heizkoerper") or []   # neue Struktur: [{typ, breite, hoehe, q_norm}, ...]
 
+    hk_liste_calc = []
     for hk in hk_liste:
-        n_exp_hk = n_exponent(hk["hk_typ"], p)
-        q_norm   = hk.get("hk_q_norm")
-        if hk["hk_typ"] in ("Typ10", "Typ11", "Typ21", "Typ22") and q_norm and n_exp_hk:
-            q_wp_hk += round(q_norm * (dt_neu / p["dt_norm"]) ** n_exp_hk, 2)
+        n_exp_hk = n_exponent(hk["typ"], p)
+        q_norm   = hk.get("q_norm")
+        q_hk = 0.0
+        if hk["typ"] in ("Typ10", "Typ11", "Typ21", "Typ22") and q_norm and n_exp_hk:
+            q_hk = round(q_norm * (dt_neu / p["dt_norm"]) ** n_exp_hk, 2)
+            q_wp_hk += q_hk
+        hk_liste_calc.append({**hk, "q_wp": q_hk, "n_exp": n_exp_hk})
 
     q_wp_hk = round(q_wp_hk, 2)
-    n_exp = n_exponent(raum["hk_typ"], p)  # für Template-Ausgabe (erster HK)
+    # n_exp für Template: erster HK, oder None
+    n_exp = hk_liste_calc[0]["n_exp"] if hk_liste_calc else None
 
     # ── Wandheizung ───────────────────────────────────────
     q_wp_wand = 0.0
@@ -143,7 +170,7 @@ def berechne_raum(raum, p):
     q_wp_gesamt = round(q_wp_hk + q_wp_wand, 2)
     reserve     = round(q_wp_gesamt - phi_hl, 2)
 
-    if raum["hk_typ"] is None and not raum.get("wand_fl"):
+    if not hk_liste and not raum.get("wand_fl"):
         status = "○ mitgeheizt"
     elif reserve >= 0:
         status = "✓ OK"
@@ -152,17 +179,20 @@ def berechne_raum(raum, p):
     else:
         status = "✗ zu klein"
 
-    # ── Volumenstrom (v_soll wird berechnet, ve/dp kommen aus Eingabe) ────────
+    # ── Volumenstrom ──────────────────────────────────────
     q_ausl  = round(min(q_wp_gesamt, phi_hl) if phi_hl > 0 else q_wp_gesamt, 2)
     v_soll  = round(q_ausl / p["div_vol"], 2) if p["div_vol"] > 0 else 0.0
 
-    # ve und dp: aus Eingabe übernehmen (None bis Rohrnetzberechnung vorliegt)
-    ve = raum.get("ve")   # Voreinstellwert Thermostatventil
-    dp = raum.get("dp")   # Druckverlust mbar
+    # dp: aus Eingabe (kommt vom Heizungsbauer / Rohrnetzberechnung)
+    dp = raum.get("dp")   # verfügbarer Differenzdruck am Ventil [mbar]
+
+    # ve: automatisch berechnen wenn dp bekannt, sonst None
+    ve = berechne_ve(v_soll, dp)
 
     return {
         **raum,
-        "bauteile_calc": bauteile_calc,
+        "bauteile_calc":   bauteile_calc,
+        "heizkoerper_calc": hk_liste_calc,
         "h": h, "vol": vol, "n_min": n_min,
         "ht": ht, "hv": hv,
         "phi_hl": phi_hl,
@@ -171,10 +201,9 @@ def berechne_raum(raum, p):
         "q_wp_gesamt": q_wp_gesamt, "reserve": reserve,
         "status": status,
         "q_ausl": q_ausl,
-        "v_soll": v_soll,   # berechnet
-        "ve":     ve,        # Eingabe
-        "dp":     dp,        # Eingabe
-        # Rückwärtskompatibilität: massenstrom = v_soll
+        "v_soll": v_soll,
+        "ve":     ve,
+        "dp":     dp,
         "massenstrom": v_soll,
     }
 

@@ -1,0 +1,16 @@
+gliederheizkörper flur 2000*600 
+nochmal gucekn heizkörper mit G ->  Vasco-viola
+		heizkörper ohne -> standart normheizkörper
+
+einstellwert errechnen damit man rausfindet wie es funkktiert
+
+
+hersteller imi heimeyer danvos
+
+https://climatecontrol.imiplc.com/de-de/loesungen/hydraulischer-abgleich-ratgeber
+https://climatecontrol.imiplc.com/de-de/webinare/hydraulischer-abgleich-mit-easyplan
+https://danfoss.sabacloud.com/Saba/Web_spf/EU2PRD0064/guestapp/ledetail/cours000000000017931
+https://www.danfoss.com/de-de/about-danfoss/news/dhs/hydraulischer-abgleich/
+https://www.danfoss.com/de-de/markets/buildings-commercial/dhs/hydronic-balancing-and-control/hydronic-balancing-static-dynamic-automatic/
+
+
