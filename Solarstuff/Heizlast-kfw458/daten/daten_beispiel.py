@@ -22,10 +22,13 @@ PARAMETER = {
     "h_kg":          2.50,     # Raumhöhe Keller m        ← messen
     "h_eg":          2.50,     # Raumhöhe EG m            ← messen
 
-    # Lüftung EN 12831 (normale Dichtheit – in der Regel nicht ändern)
+    # Lüftung EN 12831-1 Anhang B (normale Dichtheit – in der Regel nicht ändern)
+    # HINWEIS: n_feucht = 0.5 h⁻¹ ist der Norm-Luftwechsel für die Heizlastberechnung.
+    #          Der hygienische Mindest-Luftwechsel nach DIN 1946-6 (1.5 h⁻¹) ist ein
+    #          separater Lüftungsnachweis und hat hier nichts zu suchen.
     "rcp_luft":      0.340,    # ρ·cp Luft Wh/(m³K)  – Konstante
-    "n_wohn":        0.50,     # Luftwechsel Wohnräume h⁻¹
-    "n_feucht":      1.50,     # Luftwechsel Bad/WC/Dusche h⁻¹
+    "n_wohn":        0.50,     # Luftwechsel Wohnräume h⁻¹       – EN 12831-1
+    "n_feucht":      0.50,     # Luftwechsel Bad/WC/Dusche h⁻¹  – EN 12831-1 Anhang B
 
     # Wärmepumpen-Auslegungstemperaturen ← EINGABE (Anlagenplanung)
     "vl":            55,       # Vorlauftemperatur °C
@@ -48,6 +51,19 @@ PARAMETER = {
 
     # Hydraulik
     "rcp_wasser":    1.163,    # ρ·cp Wasser Wh/(l·K)
+
+    # ── Rohrnetz ───────────────────────────────────────────────────────────────
+    "rohr_d_haupt":   28,      # mm — Hauptstrang Cu Außen-Ø
+    "rohr_d_zweig":   22,      # mm — Zweigstrang
+    "rohr_d_hk":      15,      # mm — letzter Abschnitt zum HK  ← bestimmt dp_rohr
+    "rohr_l_hk":       5.0,    # m  — geschätzte Länge Ø15 (einfach, Rücklauf gleich lang)
+    "rohr_zuschlag":   1.3,    # —  — Faktor für Bögen/Fittings
+
+    # ── Pumpe & Ventil ─────────────────────────────────────────────────────────
+    "dp_pumpe":       400,     # mbar — 4 mWS
+    "dp_hk_intern":    80,     # mbar — HK-Innenwiderstand
+    "ventil_stufen":    6,     # —    — max. Stufe
+    "ventil_kv": [0.04, 0.10, 0.19, 0.32, 0.50, 0.82],  # m³/h pro Stufe
 }
 
 # ── Räume ──────────────────────────────────────────────────────────────────────
@@ -68,7 +84,7 @@ PARAMETER = {
 #                 1.0 = grenzt an Außenluft
 #                 0.5 = grenzt an unbeheizten Raum (Keller, Garage)
 #                 0.8 = grenzt an Erdreich (Bodenplatte)
-#                 0.0 = Innenwand zu beheiztem Raum (kein Verlust)
+#                 0.0 = Innenwand/Bauteil zu beheiztem Raum (kein Verlust)
 #
 #   U-WERTE Richtwerte nach Baujahr (falls unbekannt):
 #     Außenwand  vor 1960: ~1.4   1960-1980: ~0.8   1980-2000: ~0.5   nach 2000: ~0.3
@@ -76,24 +92,19 @@ PARAMETER = {
 #     Dach/Decke vor 1980: ~1.0   gedämmt:   ~0.3   gut gedämmt: ~0.15
 #     Bodenplatte          ~0.5   gedämmt:   ~0.25
 #
-#   HEIZKÖRPER-Felder:
-#     hk_typ      "Typ10", "Typ11", "Typ21", "Typ22", None (mitgeheizt)
-#     hk_breite   mm  (aus Katalog)
-#     hk_hoehe    mm  (aus Katalog)
-#     hk_q_norm   W bei 75/65/20  (aus Katalog)  ← EINGABE, None bis Katalog vorliegt
-#     wand_fl     m²  Wandheizfläche (nur bei Wandheizung, sonst 0)
-#     mehrere_hk  Liste von HK-Dicts falls mehrere HK im Raum, sonst None
-#                 Format: [{"hk_typ": "Typ11", "hk_breite": 1800,
-#                           "hk_hoehe": 600, "hk_q_norm": None}, ...]
+#   HEIZKÖRPER — Liste unter "heizkoerper": [...]
+#     Felder pro Eintrag:
+#       typ       "Typ10", "Typ11", "Typ21", "Typ22"
+#       breite    mm  (aus Katalog)
+#       hoehe     mm  (aus Katalog)
+#       q_norm    W bei 75/65/20  (aus Katalog)  ← EINGABE, None bis Katalog vorliegt
 #
-#   HYDRAULIK-Felder (hydraulischer Abgleich):
-#     ve          Voreinstellwert Thermostatventil  ← EINGABE nach Rohrnetzberechnung
-#                 None bis Rohrnetzberechnung vorliegt
-#     dp          Druckverlust des Kreises [mbar]   ← EINGABE nach Rohrnetzberechnung
-#                 None bis Rohrnetzberechnung vorliegt
-#     v_soll      Soll-Volumenstrom [l/h]           ← wird vom Script berechnet
-#                 (= q_ausl / rcp_wasser / spreizung), hier immer None lassen
+#     Für Räume ohne eigenen HK (mitgeheizt): "heizkoerper": []
+#     Für Wandheizung:  "heizkoerper": [],  "wand_fl": <m²>
 #
+#   SONSTIGE Felder:
+#     wand_fl     m²  Wandheizfläche (nur bei Wandheizung Hypoplan, sonst 0)
+#     dp          mbar  Druckverlust des Kreises  ← None (wird berechnet)
 #     bemerkung   Freitext
 
 RAEUME = [
@@ -114,15 +125,11 @@ RAEUME = [
             # Boden (grenzt an unbeheizten Keller → fx=0.5; an beheizten Keller → fx=0.0)
             {"typ": "FB", "name": "Boden",    "a_netto": 25.0, "u_wert": 0.35, "fx": 0.5},
         ],
-        "hk_typ":    "Typ11",
-        "hk_breite": 1800,
-        "hk_hoehe":  600,
-        "hk_q_norm": 1480,       # W bei 75/65/20 – aus Katalog
+        "heizkoerper": [
+            {"typ": "Typ11", "breite": 1800, "hoehe": 600, "q_norm": 1480},
+        ],
         "wand_fl":   0,
-        "mehrere_hk": None,
-        "ve":        None,        # ← nach Rohrnetzberechnung eintragen
-        "dp":        None,        # ← nach Rohrnetzberechnung eintragen
-        "v_soll":    None,        # ← wird berechnet, hier None lassen
+        "dp":        None,
         "bemerkung": None,
     },
     {
@@ -134,15 +141,11 @@ RAEUME = [
             {"typ": "DE", "name": "Decke",    "a_netto": 12.0, "u_wert": 0.20, "fx": 1.0},
             {"typ": "FB", "name": "Boden",    "a_netto": 12.0, "u_wert": 0.35, "fx": 0.5},
         ],
-        "hk_typ":    "Typ11",
-        "hk_breite": 800,
-        "hk_hoehe":  600,
-        "hk_q_norm": 660,
+        "heizkoerper": [
+            {"typ": "Typ11", "breite": 800, "hoehe": 600, "q_norm": 660},
+        ],
         "wand_fl":   0,
-        "mehrere_hk": None,
-        "ve":        None,
         "dp":        None,
-        "v_soll":    None,
         "bemerkung": None,
     },
     {
@@ -154,15 +157,11 @@ RAEUME = [
             {"typ": "DE", "name": "Decke",    "a_netto": 6.0,  "u_wert": 0.20, "fx": 1.0},
             {"typ": "FB", "name": "Boden",    "a_netto": 6.0,  "u_wert": 0.35, "fx": 0.5},
         ],
-        "hk_typ":    "Typ11",
-        "hk_breite": 600,
-        "hk_hoehe":  600,
-        "hk_q_norm": 490,
+        "heizkoerper": [
+            {"typ": "Typ11", "breite": 600, "hoehe": 600, "q_norm": 490},
+        ],
         "wand_fl":   0,
-        "mehrere_hk": None,
-        "ve":        None,
         "dp":        None,
-        "v_soll":    None,
         "bemerkung": None,
     },
 ]

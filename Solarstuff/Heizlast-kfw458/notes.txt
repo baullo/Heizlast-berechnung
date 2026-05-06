@@ -1,4 +1,4 @@
-gliederheizkörper flur 2000*600 
+gliederheizkörper flur 2000*600 ü
 nochmal gucekn heizkörper mit G ->  Vasco-viola
 		heizkörper ohne -> standart normheizkörper
 

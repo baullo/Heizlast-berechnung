@@ -1,8 +1,9 @@
 """
-generate_pdf.py – HTML → PDF Konverter
-========================================
-Konvertiert die drei HTML-Ausgaben von generate.py in ein
-zusammengefügtes PDF-Dokument.
+generate_pdf.py – HTML → PDF Konverter (WeasyPrint)
+=====================================================
+Nutzt WeasyPrint (reines Python, kein externer Browser) für die
+PDF-Erzeugung. Rendert CSS2/CSS3 Tabellen, @page-Margins und
+print-media korrekt – ohne wkhtmltopdf oder Chromium.
 
 Verwendung:
     python3 generate_pdf.py <projektname>
@@ -14,14 +15,20 @@ Erwartet:  output/<projektname>/deckblatt.html
 
 Ausgabe:   output/<projektname>/<projektname>_heizlast.pdf
 
-Abhängigkeiten:
-    pip install pdfkit
-    apt install wkhtmltopdf   (oder wkhtmltopdf.org)
+Installation (einmalig):
+    pip install weasyprint --break-system-packages
 """
 
 import sys
-import pdfkit
 from pathlib import Path
+
+try:
+    import weasyprint
+except ImportError:
+    print("FEHLER: weasyprint nicht installiert.")
+    print("  pip install weasyprint --break-system-packages")
+    sys.exit(1)
+
 from pypdf import PdfWriter, PdfReader
 
 # ── Projektname ────────────────────────────────────────────────────────────────
@@ -38,38 +45,19 @@ if not out.exists():
     print(f"Bitte zuerst:  python3 generate.py {projektname}")
     sys.exit(1)
 
-# ── wkhtmltopdf Optionen ───────────────────────────────────────────────────────
-options_portrait = {
-    "page-size":        "A4",
-    "orientation":      "Portrait",
-    "margin-top":       "0mm",
-    "margin-right":     "0mm",
-    "margin-bottom":    "0mm",
-    "margin-left":      "0mm",
-    "encoding":         "UTF-8",
-    "enable-local-file-access": "",
-    "print-media-type": "",
-    "quiet":            "",
-}
-
-options_landscape = {
-    **options_portrait,
-    "orientation": "Landscape",
-}
-
-# ── Einzelne PDFs erzeugen ─────────────────────────────────────────────────────
-tmp_files = []
-
+# ── Seiten-Konfiguration ───────────────────────────────────────────────────────
+# @page size/orientation kommt aus dem CSS der jeweiligen HTML-Datei –
+# WeasyPrint liest das direkt, hier nur die Dateinamen definieren.
 pages = [
-    ("deckblatt.html",  "tmp_deckblatt.pdf",  options_portrait),
-    ("heizlast.html",   "tmp_heizlast.pdf",   options_portrait),
-    ("hydraulik.html",  "tmp_hydraulik.html",  options_landscape),  # landscape A4
+    ("deckblatt.html", "tmp_deckblatt.pdf"),
+    ("heizlast.html",  "tmp_heizlast.pdf"),
+    ("hydraulik.html", "tmp_hydraulik.pdf"),
 ]
 
-# hydraulik.html braucht landscape
-pages[2] = ("hydraulik.html", "tmp_hydraulik.pdf", options_landscape)
+# ── PDFs erzeugen ──────────────────────────────────────────────────────────────
+tmp_files = []
 
-for html_name, pdf_name, opts in pages:
+for html_name, pdf_name in pages:
     html_path = out / html_name
     pdf_path  = out / pdf_name
 
@@ -79,7 +67,7 @@ for html_name, pdf_name, opts in pages:
 
     print(f"  Konvertiere {html_name} ...", end=" ")
     try:
-        pdfkit.from_file(str(html_path), str(pdf_path), options=opts)
+        weasyprint.HTML(filename=str(html_path)).write_pdf(str(pdf_path))
         tmp_files.append(pdf_path)
         print("✓")
     except Exception as e:

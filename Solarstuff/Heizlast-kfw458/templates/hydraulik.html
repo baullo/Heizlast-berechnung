@@ -103,18 +103,20 @@
       <td class="center">{{ r.theta_i }}</td>
       <td>{{ "%.0f"|format(r.phi_hl) }}</td>
 
-      {# HK-Spalten #}
+      {# HK-Spalten — liest heizkoerper_calc aus generate.py #}
       <td class="left">
-        {% if r.mehrere_hk %}
-          {% for hk in r.mehrere_hk %}{{ hk.hk_typ }} {{ hk.hk_breite }}×{{ hk.hk_hoehe }}{% if not loop.last %}<br>{% endif %}{% endfor %}
-        {% elif r.hk_typ %}
-          {{ r.hk_typ }}{% if r.hk_breite %} {{ r.hk_breite }}×{{ r.hk_hoehe }}{% endif %}
+        {% if r.heizkoerper_calc %}
+          {% for hk in r.heizkoerper_calc %}
+            {{ hk.typ }} {{ hk.breite }}×{{ hk.hoehe }}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
         {% else %}–{% endif %}
       </td>
       <td>
-        {% if r.mehrere_hk %}
-          {% for hk in r.mehrere_hk %}{{ hk.hk_q_norm if hk.hk_q_norm else "–" }}{% if not loop.last %}<br>{% endif %}{% endfor %}
-        {% else %}{{ r.hk_q_norm if r.hk_q_norm else "–" }}{% endif %}
+        {% if r.heizkoerper_calc %}
+          {% for hk in r.heizkoerper_calc %}
+            {{ hk.q_norm if hk.q_norm else "–" }}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
+        {% else %}–{% endif %}
       </td>
       <td>{{ r.n_exp if r.n_exp else "–" }}</td>
       <td>{{ "%.0f"|format(r.q_wp_hk) if r.q_wp_hk else "–" }}</td>
@@ -157,7 +159,6 @@
     </tr>
   {% endfor %}
 
-    {# ── Gesamt ── #}
     <tr class="gesamt">
       <td colspan="3" class="left">SUMME GEBÄUDE</td>
       <td>–</td>

@@ -8,7 +8,6 @@
   body { font-family: Arial, sans-serif; font-size: 8pt; color: #000; }
 
   h1  { font-size: 11pt; font-weight: bold; margin-bottom: 3px; }
-  h2  { font-size: 9pt;  font-weight: bold; margin-bottom: 3px; }
   .meta { font-size: 7pt; color: #444; margin-bottom: 12px; }
 
   .raum {
@@ -19,25 +18,10 @@
   .raum-header {
     background: #e0e8f4;
     padding: 4px 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
     border-bottom: 0.5pt solid #999;
   }
-  .raum-header .titel { font-weight: bold; font-size: 9pt; }
-  .raum-header .meta  { font-size: 7pt; color: #333; margin: 0; }
-
-  .kennwerte {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 5px 8px;
-    gap: 1px 20px;
-    font-size: 7.5pt;
-    border-bottom: 0.5pt solid #ddd;
-  }
-  .kw { display: flex; gap: 4px; }
-  .kw-label { color: #555; width: 130px; }
-  .kw-val   { font-weight: bold; }
+  .raum-header .titel { font-weight: bold; font-size: 9pt; display: block; }
+  .raum-header .meta  { font-size: 7pt; color: #333; display: block; }
 
   table.bauteile {
     width: 100%;
@@ -64,20 +48,26 @@
     color: #555;
   }
 
-  .ergebnis {
-    display: flex;
-    justify-content: flex-end;
-    gap: 16px;
-    padding: 4px 8px;
-    font-size: 8pt;
-    border-top: 0.5pt solid #bbb;
+  /* Ergebnis-Zeile als Tabelle statt Flexbox (wkhtmltopdf-sicher) */
+  table.ergebnis-table {
+    width: 100%;
+    border-collapse: collapse;
     background: #fafafa;
+    border-top: 0.5pt solid #bbb;
   }
-  .ergebnis .item { display: flex; gap: 4px; align-items: baseline; }
-  .ergebnis .label { color: #555; font-size: 7pt; }
-  .ergebnis .val   { font-weight: bold; }
-  .ergebnis .hl    { font-size: 10pt; font-weight: bold;
-                     border: 1pt solid #333; padding: 1px 8px; }
+  table.ergebnis-table td {
+    padding: 3px 6px;
+    border: none;
+    font-size: 8pt;
+    white-space: nowrap;
+  }
+  table.ergebnis-table td.spacer { width: 100%; }
+  table.ergebnis-table td.label  { color: #555; font-size: 7pt; text-align: right; }
+  table.ergebnis-table td.val    { font-weight: bold; padding-right: 14px; }
+  table.ergebnis-table td.hl     {
+    font-size: 10pt; font-weight: bold;
+    border: 1pt solid #333; padding: 1px 8px;
+  }
 
   .gs-header {
     background: #d4dff0;
@@ -185,28 +175,21 @@
     </tbody>
   </table>
 
-  <div class="ergebnis">
-    <div class="item">
-      <span class="label">HT</span>
-      <span class="val">{{ "%.2f"|format(r.ht) }} W/K</span>
-    </div>
-    <div class="item">
-      <span class="label">HV</span>
-      <span class="val">{{ "%.2f"|format(r.hv) }} W/K</span>
-    </div>
-    <div class="item">
-      <span class="label">HT+HV</span>
-      <span class="val">{{ "%.2f"|format(r.ht + r.hv) }} W/K</span>
-    </div>
-    <div class="item">
-      <span class="label">ΦHL =</span>
-      <span class="hl">{{ "%.0f"|format(r.phi_hl) }} W</span>
-    </div>
-    <div class="item">
-      <span class="label">=</span>
-      <span class="val">{{ "%.0f"|format(r.phi_hl / r.flaeche) }} W/m²</span>
-    </div>
-  </div>
+  <table class="ergebnis-table">
+    <tr>
+      <td class="spacer"></td>
+      <td class="label">HT</td>
+      <td class="val">{{ "%.2f"|format(r.ht) }} W/K</td>
+      <td class="label">HV</td>
+      <td class="val">{{ "%.2f"|format(r.hv) }} W/K</td>
+      <td class="label">HT+HV</td>
+      <td class="val">{{ "%.2f"|format(r.ht + r.hv) }} W/K</td>
+      <td class="label">ΦHL =</td>
+      <td class="hl">{{ "%.0f"|format(r.phi_hl) }} W</td>
+      <td class="label">=</td>
+      <td class="val">{{ "%.0f"|format(r.phi_hl / r.flaeche) }} W/m²</td>
+    </tr>
+  </table>
 
 </div>
 {% endfor %}

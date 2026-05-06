@@ -32,14 +32,21 @@ Berechnungsformeln EN 12831:
     Q_Ausl = min(Q_WP_Gesamt, ΦHL)
     ṁ      = Q_Ausl / (ρcp_Wasser × Spreizung)   [l/h]
 
-  Ventil-Voreinstellung (Heimeier V-Exact II, max. Stufe 6):
-    kv_ben  = (v_soll / 1000) / √(dp / 100)      [m³/h]
-    ve      = kleinste Stufe mit kv(ve) ≥ kv_ben
-    kv-Tabelle Stufe 1–6: [0.04, 0.10, 0.19, 0.32, 0.50, 0.82]
-    Voraussetzung: dp [mbar] pro Heizkörper bekannt (Rohrnetzberechnung)
+  Rohrnetz-Druckverlust (Kupfer, Parallelstrang):
+    di     = rohr_d_hk − 2.0              [mm]  Innendurchmesser (Wandstärke ~1mm)
+    v_str  = v_soll / (900 × π × (di/2000)²)    [m/s]  Strömungsgeschwindigkeit
+    R      = 0.025 × (v_str² × 1000) / di       [mbar/m]  Rohrreibung (vereinfacht)
+    dp_rohr = 2 × R × rohr_l_hk × rohr_zuschlag [mbar]  Hin + Rücklauf
+
+  Ventil-Voreinstellung:
+    dp_ventil = dp_pumpe − dp_rohr − dp_hk_intern   [mbar]
+    kv_ben    = (v_soll / 1000) / √(dp_ventil / 100) [m³/h]
+    ve        = kleinste Stufe mit ventil_kv[stufe] ≥ kv_ben
+    Fallback  = dp_pumpe × 0.5 falls dp_ventil ≤ 0
 """
 
 import sys
+import math
 import importlib
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
@@ -79,6 +86,65 @@ def abgeleitete_parameter(p):
             "hypo_steig": hypo_steig}
 
 
+# ── Rohrnetz-Druckverlust ──────────────────────────────────────────────────────
+
+def berechne_dp_rohr(v_soll_lh, p):
+    """
+    Druckverlust im Ø15-Abschnitt (letztes Stück zum HK), Hin + Rücklauf.
+    Kupfer: Wandstärke ~1mm → di = d_außen − 2mm
+    Vereinfachte Rohrreibungsformel (Blasius-Näherung für turbulente Strömung).
+    Gibt dp_rohr [mbar] zurück.
+    """
+    d_aussen  = p.get("rohr_d_hk", 15)          # mm
+    l_hk      = p.get("rohr_l_hk", 5.0)         # m
+    zuschlag  = p.get("rohr_zuschlag", 1.3)      # Bögen/Fittings
+
+    di_mm = d_aussen - 2.0                       # Innendurchmesser mm (Cu Wandstärke ~1mm)
+    di_m  = di_mm / 1000.0
+
+    if v_soll_lh <= 0 or di_m <= 0:
+        return 0.0
+
+    # Volumenstrom m³/s
+    q_m3s = v_soll_lh / 1000.0 / 3600.0
+    # Querschnitt m²
+    A = math.pi * (di_m / 2) ** 2
+    # Strömungsgeschwindigkeit m/s
+    v_str = q_m3s / A
+
+    # Rohrreibungszahl λ (Blasius, turbulent, glatte Rohre)
+    Re = v_str * di_m / 1e-6          # kinematische Viskosität Wasser ~1e-6 m²/s bei 50°C
+    if Re < 1:
+        return 0.0
+    lam = 0.316 / Re**0.25 if Re > 2300 else 64 / Re
+
+    # Druckgradient Pa/m → mbar/m
+    R_pa = lam * (1.0 / di_m) * (985 * v_str**2 / 2)   # ρ Wasser ~985 kg/m³ bei 55°C
+    R_mbar = R_pa / 100.0
+
+    # Hin + Rücklauf × Zuschlag
+    dp = round(2 * R_mbar * l_hk * zuschlag, 1)
+    return dp
+
+
+# ── Ventil-Voreinstellung ──────────────────────────────────────────────────────
+
+def berechne_ve(v_soll_lh, dp_ventil, kv_tabelle, max_stufe):
+    """
+    Gibt Voreinstellstufe zurück (1 … max_stufe).
+    kv_tabelle : Liste von kv-Werten [m³/h], Index 0 = Stufe 1
+    dp_ventil  : verfügbarer Differenzdruck am Ventil [mbar]
+    Gibt None zurück wenn dp ≤ 0 oder v_soll = 0.
+    """
+    if not dp_ventil or dp_ventil <= 0 or not v_soll_lh or v_soll_lh <= 0:
+        return None
+    kv_ben = (v_soll_lh / 1000.0) / math.sqrt(dp_ventil / 100.0)
+    for stufe, kv in enumerate(kv_tabelle, start=1):
+        if kv >= kv_ben:
+            return stufe
+    return max_stufe   # v_soll > was Ventil schafft → voll auf
+
+
 # ── Raumberechnung ─────────────────────────────────────────────────────────────
 
 def n_exponent(hk_typ, p):
@@ -86,26 +152,6 @@ def n_exponent(hk_typ, p):
             "Typ11": p["n_typ11"],
             "Typ21": p["n_typ21"],
             "Typ22": p["n_typ22"]}.get(hk_typ)
-
-
-# kv-Werte Heimeier V-Exact II, Stufen 1–6  [m³/h]
-_KV_HEIMEIER = [0.04, 0.10, 0.19, 0.32, 0.50, 0.82]
-
-def berechne_ve(v_soll_lh, dp_mbar):
-    """
-    Gibt Voreinstellstufe 1–6 (Heimeier V-Exact II) zurück.
-    v_soll_lh : benötigter Volumenstrom [l/h]
-    dp_mbar   : verfügbarer Differenzdruck am Ventil [mbar]
-    Gibt None zurück wenn dp fehlt oder v_soll=0.
-    """
-    if not dp_mbar or not v_soll_lh or v_soll_lh <= 0 or dp_mbar <= 0:
-        return None
-    import math
-    kv_ben = (v_soll_lh / 1000.0) / math.sqrt(dp_mbar / 100.0)
-    for stufe, kv in enumerate(_KV_HEIMEIER, start=1):
-        if kv >= kv_ben:
-            return stufe
-    return 6  # größer als max → voll auf
 
 
 def berechne_raum(raum, p):
@@ -145,12 +191,12 @@ def berechne_raum(raum, p):
     dt_neu  = round(p["tm"] - ti, 1)
     q_wp_hk = 0.0
 
-    hk_liste = raum.get("heizkoerper") or []   # neue Struktur: [{typ, breite, hoehe, q_norm}, ...]
+    hk_liste = raum.get("heizkoerper") or []
 
     hk_liste_calc = []
     for hk in hk_liste:
         n_exp_hk = n_exponent(hk["typ"], p)
-        q_norm   = hk.get("q_norm")
+        q_norm   = hk.get("hk_q_norm") or hk.get("q_norm")
         q_hk = 0.0
         if hk["typ"] in ("Typ10", "Typ11", "Typ21", "Typ22") and q_norm and n_exp_hk:
             q_hk = round(q_norm * (dt_neu / p["dt_norm"]) ** n_exp_hk, 2)
@@ -158,8 +204,11 @@ def berechne_raum(raum, p):
         hk_liste_calc.append({**hk, "q_wp": q_hk, "n_exp": n_exp_hk})
 
     q_wp_hk = round(q_wp_hk, 2)
-    # n_exp für Template: erster HK, oder None
-    n_exp = hk_liste_calc[0]["n_exp"] if hk_liste_calc else None
+    if hk_liste_calc:
+        exps = set(hk["n_exp"] for hk in hk_liste_calc if hk["n_exp"])
+        n_exp = hk_liste_calc[0]["n_exp"] if len(exps) == 1 else "gem."
+    else:
+        n_exp = None
 
     # ── Wandheizung ───────────────────────────────────────
     q_wp_wand = 0.0
@@ -180,18 +229,35 @@ def berechne_raum(raum, p):
         status = "✗ zu klein"
 
     # ── Volumenstrom ──────────────────────────────────────
-    q_ausl  = round(min(q_wp_gesamt, phi_hl) if phi_hl > 0 else q_wp_gesamt, 2)
-    v_soll  = round(q_ausl / p["div_vol"], 2) if p["div_vol"] > 0 else 0.0
+    q_ausl = round(min(q_wp_gesamt, phi_hl) if phi_hl > 0 else q_wp_gesamt, 2)
+    v_soll = round(q_ausl / p["div_vol"], 2) if p["div_vol"] > 0 else 0.0
 
-    # dp: aus Eingabe (kommt vom Heizungsbauer / Rohrnetzberechnung)
-    dp = raum.get("dp")   # verfügbarer Differenzdruck am Ventil [mbar]
+    # ── Hydraulischer Abgleich ────────────────────────────
+    # Rohrverlust aus physikalischen Parametern berechnen
+    dp_rohr = berechne_dp_rohr(v_soll, p)
 
-    # ve: automatisch berechnen wenn dp bekannt, sonst None
-    ve = berechne_ve(v_soll, dp)
+    # dp_ventil: explizit im Raum überschreibbar, sonst aus Parametern
+    if raum.get("dp") is not None:
+        dp_ventil = raum["dp"]
+    else:
+        dp_pumpe    = p.get("dp_pumpe",    400)
+        dp_hk_int   = p.get("dp_hk_intern", 80)
+        dp_ventil   = dp_pumpe - dp_rohr - dp_hk_int
+        # Fallback falls Rohrverlust zu groß berechnet (unplausibel)
+        if dp_ventil <= 0:
+            dp_ventil = dp_pumpe * 0.5
+
+    dp_ventil = round(dp_ventil, 1)
+
+    # Ventil-Kennlinie aus PARAMETER lesen
+    kv_tab    = p.get("ventil_kv",     [0.04, 0.10, 0.19, 0.32, 0.50, 0.82])
+    max_stufe = p.get("ventil_stufen", 6)
+
+    ve = berechne_ve(v_soll, dp_ventil, kv_tab, max_stufe)
 
     return {
         **raum,
-        "bauteile_calc":   bauteile_calc,
+        "bauteile_calc":    bauteile_calc,
         "heizkoerper_calc": hk_liste_calc,
         "h": h, "vol": vol, "n_min": n_min,
         "ht": ht, "hv": hv,
@@ -200,11 +266,12 @@ def berechne_raum(raum, p):
         "q_wp_hk": q_wp_hk, "q_wp_wand": q_wp_wand,
         "q_wp_gesamt": q_wp_gesamt, "reserve": reserve,
         "status": status,
-        "q_ausl": q_ausl,
-        "v_soll": v_soll,
-        "ve":     ve,
-        "dp":     dp,
-        "massenstrom": v_soll,
+        "q_ausl":    q_ausl,
+        "v_soll":    v_soll,
+        "dp_rohr":   dp_rohr,       # berechneter Rohrverlust [mbar]
+        "dp_ventil": dp_ventil,     # verfügbarer Druck am Ventil [mbar]
+        "ve":        ve,            # Voreinstellstufe
+        "massenstrom": v_soll,      # Rückwärtskompatibilität
     }
 
 
@@ -219,7 +286,6 @@ def berechne_alle(raeume, parameter):
         return round(sum(r[key] for r in subset
                          if isinstance(r.get(key), (int, float))), 2)
 
-    # Summen pro Geschoss + Gesamt
     summen = {"gesamt": {k: summe(k) for k in
                          ["flaeche", "vol", "ht", "hv", "phi_hl",
                           "q_wp_gesamt", "q_ausl", "v_soll", "massenstrom"]}}
