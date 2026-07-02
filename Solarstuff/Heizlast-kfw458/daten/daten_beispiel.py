@@ -1,167 +1,246 @@
 # daten_beispiel.py
-# ==================
-# Kopiere zu daten/<projektname>.py und trag deine eigenen Werte ein.
-# Die daten/-Dateien stehen in .gitignore → kommen NICHT auf GitHub.
 #
-#   cp daten/daten_beispiel.py daten/daten_meinprojekt.py
+# Template für neue Heizlast-/Hydraulikabgleich-Projekte.
+# Kopieren als daten_<nachname>.py, dann alle <PLATZHALTER> ersetzen.
+#
+# Konventionen:
+#   Bauteil-Typen:  AW=Außenwand  FE=Fenster  DE=Decke  FB=Fußboden  IW=Innenwand
+#   fx:  1.0 = grenzt an Außenluft
+#        0.8 = grenzt an Erdreich
+#        0.5 = grenzt an unbeheizten Raum (Dachboden, Nachbar)
+#        0.0 = grenzt an beheizten Raum (= kein Wärmestrom, nur zur Info)
+#   theta_i:  20 = Wohnen   22 = Küche/Essen   24 = Bad   18 = Flur/Treppe
+#   Nr-Konvention:  EG = 0.00x   OG = 1.00x   KG = -1.00x   DG = 2.00x
 
 # ── Projektdaten ───────────────────────────────────────────────────────────────
 PROJEKT = {
-    "auftraggeber":  "Max Mustermann",
-    "adresse":       "Musterstraße 1, 12345 Musterstadt",
+    "auftraggeber":  "<VORNAME NACHNAME>",
+    "adresse":       "<STRASSE NR, PLZ ORT>",
     "foerderung":    "KfW 458 – Bundesförderung Heizungstausch",
     "nachweis":      "VdZ-Formular Hydraul. Abgleich Einzelmaßnahme Verfahren B",
     "normen":        "DIN EN 12831-1 (Heizlast) + EN 442 (HK-Korrektur)",
-    "datum":         "Mai 2026",
+    "datum":         "<MONAT JAHR>",
 }
 
-# ── Klimaparameter ─────────────────────────────────────────────────────────────
+# ── Klimaparameter & Auslegung ─────────────────────────────────────────────────
 PARAMETER = {
-    # Klimadaten
-    "theta_e":       -12,      # Norm-Außentemperatur °C  ← Standort aus DIN EN 12831 Anhang
-    "h_kg":          2.50,     # Raumhöhe Keller m        ← messen
-    "h_eg":          2.50,     # Raumhöhe EG m            ← messen
+    # Standort-Klimadaten (DIN/TRY-Tabellen oder lokale Vorgabe)
+    "theta_e":         -12,     # Norm-Außentemperatur °C  (z.B. Saarland -12, Berlin -14)
+    "theta_e_moh":      -7,     # Bivalenzpunkt (ohne Heizstab)
 
-    # Lüftung EN 12831-1 Anhang B (normale Dichtheit – in der Regel nicht ändern)
-    # HINWEIS: n_feucht = 0.5 h⁻¹ ist der Norm-Luftwechsel für die Heizlastberechnung.
-    #          Der hygienische Mindest-Luftwechsel nach DIN 1946-6 (1.5 h⁻¹) ist ein
-    #          separater Lüftungsnachweis und hat hier nichts zu suchen.
-    "rcp_luft":      0.340,    # ρ·cp Luft Wh/(m³K)  – Konstante
-    "n_wohn":        0.50,     # Luftwechsel Wohnräume h⁻¹       – EN 12831-1
-    "n_feucht":      0.50,     # Luftwechsel Bad/WC/Dusche h⁻¹  – EN 12831-1 Anhang B
+    # Raumhöhen pro Geschoss in m
+    "h_kg":            2.50,    # Keller   – ggf. ungenutzt lassen
+    "h_eg":            2.50,    # Erdgeschoss
+    # "h_og":          2.50,   # ggf. ergänzen
+    # "h_dg":          2.30,   # ggf. ergänzen
 
-    # Wärmepumpen-Auslegungstemperaturen ← EINGABE (Anlagenplanung)
-    "vl":            55,       # Vorlauftemperatur °C
-    "rl":            45,       # Rücklauftemperatur °C
+    # Lüftung EN 12831-1 Anhang B
+    "rcp_luft":        0.34,    # ρ·cp Luft Wh/(m³K) – Konstante, nicht ändern
+    "n_wohn":          0.5,     # h⁻¹  Luftwechsel Wohnräume
+    "n_feucht":        0.5,     # h⁻¹  Bad/Küche  (1.5 = DIN 1946-6, hier nicht)
 
-    # Heizkörper-Normtemperatur EN 442 (Katalogbedingungen – nicht ändern)
-    "vl_norm":       75,
-    "rl_norm":       65,
-    "ti_norm":       20,
+    # ── Heizkreise ─────────────────────────────────────────────────────────────
+    # Spreizung (vl − rl) bestimmt V_soll je HK:
+    #   V_soll_hk = Q_WP_HK / (ρcp × ΔT_spreiz)
+    #
+    # v_max Richtwerte:
+    #   hk   = 0.5–1.0 m/s  (Heizkörper Ø15 Cu, di=13 mm → max ~477 l/h bei 1 m/s)
+    #   wand = 0.5 m/s      (Wandheizung Hypoplan)
+    #   fbh  = 0.5 m/s      (Fußbodenheizung EN 1264, di an Rohr-Innen-Ø anpassen)
+    "kreise": {
+        "hk": {
+            "vl":              50,    # °C  Vorlauf Heizkörper
+            "rl":              45,    # °C  Rücklauf → Spreizung = vl − rl
+            "v_max_ms":       0.5,    # m/s
+            "di_anschluss_mm": 13,    # mm  Ø15 Cu → di=13 mm
+        },
+        "wand": {
+            "vl":              50,    # °C  Vorlauf Wandheizung
+            "rl":              45,    # °C  Rücklauf → Spreizung 5 K
+            "v_max_ms":       0.5,    # m/s
+            "di_anschluss_mm":  8,    # mm  Ø10 Cu → di=8 mm
+        },
+        # Fußbodenheizung – Bauteilvorlage:
+        # "fbh": {
+        #     "vl":              33,
+        #     "rl":              28,    # → Spreizung 5 K
+        #     "v_max_ms":       0.5,
+        #     "di_anschluss_mm": 10,    # auf tatsächlichen Rohr-Innen-Ø setzen
+        # },
+    },
+    "wp_leistung_max": 8800,    # W  Auslegungsobergrenze der Wärmepumpe
 
-    # EN 442 Exponenten nach Heizkörpertyp (nicht ändern)
-    "n_typ10":       1.26,     # 1 Platte, 0 Rippen
-    "n_typ11":       1.28,     # 1 Platte, 1 Rippe  (Standard)
-    "n_typ21":       1.30,     # 2 Platten, 1 Rippe
-    "n_typ22":       1.33,     # 2 Platten, 2 Rippenlagen
+    # Heizkörper-Normtemperatur EN 442 (NICHT ÄNDERN)
+    "vl_norm":   75,
+    "rl_norm":   65,
+    "ti_norm":   20,
+
+    # EN 442 Exponenten (NICHT ÄNDERN)
+    "n_typ10":  1.26,
+    "n_typ11":  1.28,
+    "n_typ21":  1.30,
+    "n_typ22":  1.33,
 
     # Wandheizung Hypoplan
-    "q_hypo":        250,      # W/m² bei tm=50°C, Ti=20°C  ← aus Herstellerdiagramm
-    "hypo_rohrabstand": 18,    # cm
+    "q_hypo":            250,    # W/m² bei tm=50°C, Ti=20°C (Referenz)
+    "hypo_steig":       13.0,    # W/(m²·K) – direkt aus Hypoplan-Diagramm
+    "hypo_rohrabstand":   18,    # cm
 
-    # Hydraulik
-    "rcp_wasser":    1.163,    # ρ·cp Wasser Wh/(l·K)
+    # FBH (für zukünftige Projekte)
+    "q_fbh_steig":       8.0,    # W/(m²·K) – besser aus Herstellerangabe
+
+    # Wasser
+    "rcp_wasser":     1.163,     # Wh/(l·K) – Konstante
 
     # ── Rohrnetz ───────────────────────────────────────────────────────────────
-    "rohr_d_haupt":   28,      # mm — Hauptstrang Cu Außen-Ø
-    "rohr_d_zweig":   22,      # mm — Zweigstrang
-    "rohr_d_hk":      15,      # mm — letzter Abschnitt zum HK  ← bestimmt dp_rohr
-    "rohr_l_hk":       5.0,    # m  — geschätzte Länge Ø15 (einfach, Rücklauf gleich lang)
-    "rohr_zuschlag":   1.3,    # —  — Faktor für Bögen/Fittings
+    "rohr_d_haupt":   28,        # mm Hauptstrang Cu Außen-Ø
+    "rohr_d_zweig":   22,        # mm Zweigstrang
+    "rohr_d_hk":      15,        # mm letzter Abschnitt zum HK
+    "rohr_l_hk":       8.0,      # m  geschätzte Länge (Hin = Rücklauf)
+    "rohr_zuschlag":   1.3,      # Faktor für Bögen/Fittings
 
     # ── Pumpe & Ventil ─────────────────────────────────────────────────────────
-    "dp_pumpe":       400,     # mbar — 4 mWS
-    "dp_hk_intern":    80,     # mbar — HK-Innenwiderstand
-    "ventil_stufen":    6,     # —    — max. Stufe
-    "ventil_kv": [0.04, 0.10, 0.19, 0.32, 0.50, 0.82],  # m³/h pro Stufe
+    "dp_pumpe":       400,       # mbar  verfügbarer Differenzdruck
+    "dp_hk_intern":    80,       # mbar  HK-Innenwiderstand
+    "ventil_stufen":    6,
+    "ventil_kv": [0.04, 0.10, 0.19, 0.32, 0.50, 0.82],
+
+    # ── Statischer Anlagen-Vordruck ────────────────────────────────────────────
+    # p_0 = h_statisch / 10 + 0.2  [bar]
+    "hoehe_statisch_m":    4,    # m  vertikal Pumpe → höchster HK
+
+    # ── Wärmeerzeuger ──────────────────────────────────────────────────────────
+    "waermeerzeuger": {
+        "hersteller":    "<HERSTELLER>",
+        "modell":        "<MODELL>",
+        "heizleistung":  "<X kW bei -10°C / Y-Z kW modulierend>",
+        "kaeltemittel":  "<z.B. R290 (Propan)>",
+        "scop_55":       "<SCOP bei 55°C VL>",
+    },
+
+    # ── Heizungspumpe ──────────────────────────────────────────────────────────
+    "pumpe": {
+        "fabrikat":      "<z.B. Wilo Para 25/6>",
+        "modus":         "<z.B. Differenzdruck variabel Δp-v>",
+        "stufe":         "<z.B. I (von I/II/III)>",
+    },
 }
 
 # ── Räume ──────────────────────────────────────────────────────────────────────
 #
-# BAUTEILE pro Raum – das ist die Basis der EN 12831 Berechnung:
+#   Pflichtfelder pro Raum:
+#     nr          float    Raumnummer (EG: 0.00x, OG: 1.00x, KG: -1.00x, DG: 2.00x)
+#     name        str
+#     gs          str      "KG" | "EG" | "OG" | "DG"
+#     flaeche     float    m²
+#     theta_i     int      °C  (20/22/24/18 — siehe Konvention oben)
+#     bauteile    list     siehe unten
+#     heizkoerper list     siehe unten (leere Liste [] = kein HK)
+#     wand_fl     float    m²  Wandheizfläche (0 wenn keine)
+#     dp          None     Druckverlust-Override (meist None)
+#     bemerkung   str|None
 #
-#   HT = Σ (A_netto × U × fx)      [W/K]
+#   Optional:
+#     wand_kreis  str      "hk" | "wand" | "fbh"  (Standard: "wand")
+#     fbh_fl      float    m²  Fußbodenheizfläche
+#     fbh_kreis   str      Standard: "fbh"
+#     v_soll_vorgabe  float l/h  fester Volumenstrom (überschreibt v_max-Berechnung)
+#     hk_schaltung    str  "reihe"  (Standard: parallel — siehe generate.py Docstring)
 #
-#   Bauteil-Felder:
-#     typ       Kürzel: "AW"=Außenwand, "FE"=Fenster, "DE"=Decke,
-#                       "FB"=Fußboden, "IW"=Innenwand (kein Verlust)
-#     name      Freitext z.B. "Außenwand Nord", "Fenster Süd"
-#     a_netto   m²  Nettofläche (Fenster etc. bereits abgezogen)
-#                   → bei Fenstern: direkte Fensterfläche eintragen
-#                   → bei Wänden: Wandfläche OHNE Fenster
-#     u_wert    W/(m²K)  ← aus Bauteilaufbau oder Ubakus.de
-#     fx        Temperaturkorrekturfaktor:
-#                 1.0 = grenzt an Außenluft
-#                 0.5 = grenzt an unbeheizten Raum (Keller, Garage)
-#                 0.8 = grenzt an Erdreich (Bodenplatte)
-#                 0.0 = Innenwand/Bauteil zu beheiztem Raum (kein Verlust)
+#   Bauteil-Dict:
+#     {"typ": "AW", "name": "AW Süd", "a_netto": 8.5, "u_wert": 0.28, "fx": 1.0}
 #
-#   U-WERTE Richtwerte nach Baujahr (falls unbekannt):
-#     Außenwand  vor 1960: ~1.4   1960-1980: ~0.8   1980-2000: ~0.5   nach 2000: ~0.3
-#     Fenster    Einfach:  ~5.0   Doppelt:   ~2.8   Wärmeschutz: ~1.1  3-fach: ~0.7
-#     Dach/Decke vor 1980: ~1.0   gedämmt:   ~0.3   gut gedämmt: ~0.15
-#     Bodenplatte          ~0.5   gedämmt:   ~0.25
-#
-#   HEIZKÖRPER — Liste unter "heizkoerper": [...]
-#     Felder pro Eintrag:
-#       typ       "Typ10", "Typ11", "Typ21", "Typ22"
-#       breite    mm  (aus Katalog)
-#       hoehe     mm  (aus Katalog)
-#       q_norm    W bei 75/65/20  (aus Katalog)  ← EINGABE, None bis Katalog vorliegt
-#
-#     Für Räume ohne eigenen HK (mitgeheizt): "heizkoerper": []
-#     Für Wandheizung:  "heizkoerper": [],  "wand_fl": <m²>
-#
-#   SONSTIGE Felder:
-#     wand_fl     m²  Wandheizfläche (nur bei Wandheizung Hypoplan, sonst 0)
-#     dp          mbar  Druckverlust des Kreises  ← None (wird berechnet)
-#     bemerkung   Freitext
+#   Heizkörper-Dict:
+#     {"typ": "Typ11", "breite": 1800, "hoehe": 600, "q_norm": 1762, "kreis": "hk"}
+#     – typ:    "Typ10" | "Typ11" | "Typ21" | "Typ22"
+#     – q_norm: W bei 75/65/20 (aus Herstellerkatalog)
+#     – kreis:  "hk" (Standard) | "wand" | "fbh"
 
 RAEUME = [
-    # ── Erdgeschoss ─────────────────────────────────────────────────────────────
+    # ── ERDGESCHOSS ──────────────────────────────────────────────────────────
     {
-        "nr": 0.001, "name": "Wohnzimmer", "gs": "EG",
-        "flaeche": 25.0, "theta_i": 20,
+        "nr":       0.001,
+        "name":     "<RAUMNAME>",
+        "gs":       "EG",
+        "flaeche":  0.00,
+        "theta_i":  20,
         "bauteile": [
-            # Außenwände (Nettofläche = Brutto minus Fenster)
-            {"typ": "AW", "name": "AW Süd",   "a_netto": 8.5,  "u_wert": 0.28, "fx": 1.0},
-            {"typ": "AW", "name": "AW West",  "a_netto": 6.0,  "u_wert": 0.28, "fx": 1.0},
-            # Fenster
-            {"typ": "FE", "name": "FE Süd 1", "a_netto": 2.1,  "u_wert": 1.10, "fx": 1.0},
-            {"typ": "FE", "name": "FE Süd 2", "a_netto": 1.5,  "u_wert": 1.10, "fx": 1.0},
-            {"typ": "FE", "name": "FE West",  "a_netto": 1.0,  "u_wert": 1.10, "fx": 1.0},
-            # Decke (grenzt an Außenluft → fx=1.0; an beheiztes OG → fx=0.0)
-            {"typ": "DE", "name": "Decke",    "a_netto": 25.0, "u_wert": 0.20, "fx": 1.0},
-            # Boden (grenzt an unbeheizten Keller → fx=0.5; an beheizten Keller → fx=0.0)
-            {"typ": "FB", "name": "Boden",    "a_netto": 25.0, "u_wert": 0.35, "fx": 0.5},
+            {"typ": "AW", "name": "AW <RICHTUNG>",  "a_netto": 0.00, "u_wert": 0.00, "fx": 1.0},
+            {"typ": "FE", "name": "FE <RICHTUNG>",  "a_netto": 0.00, "u_wert": 0.00, "fx": 1.0},
+            {"typ": "DE", "name": "DE <BEZ>",       "a_netto": 0.00, "u_wert": 0.00, "fx": 0.5},
+            {"typ": "FB", "name": "FB <BEZ>",       "a_netto": 0.00, "u_wert": 0.00, "fx": 0.8},
+            # {"typ": "IW", "name": "IW1",          "a_netto": 0.00, "u_wert": 0.00, "fx": 0.0},
         ],
         "heizkoerper": [
-            {"typ": "Typ11", "breite": 1800, "hoehe": 600, "q_norm": 1480},
+            {"typ": "Typ11", "breite": 1800, "hoehe": 600, "q_norm": 0, "kreis": "hk"},
         ],
         "wand_fl":   0,
         "dp":        None,
         "bemerkung": None,
     },
-    {
-        "nr": 0.002, "name": "Küche", "gs": "EG",
-        "flaeche": 12.0, "theta_i": 22,
-        "bauteile": [
-            {"typ": "AW", "name": "AW Nord",  "a_netto": 5.5,  "u_wert": 0.28, "fx": 1.0},
-            {"typ": "FE", "name": "FE Nord",  "a_netto": 1.5,  "u_wert": 1.10, "fx": 1.0},
-            {"typ": "DE", "name": "Decke",    "a_netto": 12.0, "u_wert": 0.20, "fx": 1.0},
-            {"typ": "FB", "name": "Boden",    "a_netto": 12.0, "u_wert": 0.35, "fx": 0.5},
-        ],
-        "heizkoerper": [
-            {"typ": "Typ11", "breite": 800, "hoehe": 600, "q_norm": 660},
-        ],
-        "wand_fl":   0,
-        "dp":        None,
-        "bemerkung": None,
-    },
-    {
-        "nr": 0.003, "name": "Bad", "gs": "EG",
-        "flaeche": 6.0, "theta_i": 24,
-        "bauteile": [
-            {"typ": "AW", "name": "AW Ost",   "a_netto": 3.8,  "u_wert": 0.28, "fx": 1.0},
-            {"typ": "FE", "name": "FE Ost",   "a_netto": 0.6,  "u_wert": 1.10, "fx": 1.0},
-            {"typ": "DE", "name": "Decke",    "a_netto": 6.0,  "u_wert": 0.20, "fx": 1.0},
-            {"typ": "FB", "name": "Boden",    "a_netto": 6.0,  "u_wert": 0.35, "fx": 0.5},
-        ],
-        "heizkoerper": [
-            {"typ": "Typ11", "breite": 600, "hoehe": 600, "q_norm": 490},
-        ],
-        "wand_fl":   0,
-        "dp":        None,
-        "bemerkung": None,
-    },
+
+    # Raum mit MEHREREN Heizkörpern (parallel):
+    # {
+    #     "nr":       0.002,
+    #     "name":     "Esszimmer",
+    #     "gs":       "EG",
+    #     "flaeche":  0.00,
+    #     "theta_i":  22,
+    #     "bauteile": [ ... ],
+    #     "heizkoerper": [
+    #         {"typ": "Typ10", "breite": 2600, "hoehe": 300, "q_norm": 931, "kreis": "hk"},
+    #         {"typ": "Typ10", "breite": 2600, "hoehe": 300, "q_norm": 931, "kreis": "hk"},
+    #     ],
+    #     "wand_fl":   0,
+    #     "dp":        None,
+    #     "bemerkung": "2× Typ10 parallel",
+    # },
+
+    # Raum NUR mit Wandheizung (kein HK):
+    # {
+    #     "nr":       0.003,
+    #     "name":     "Wohnzimmer",
+    #     "gs":       "EG",
+    #     "flaeche":  0.00,
+    #     "theta_i":  22,
+    #     "bauteile": [ ... ],
+    #     "heizkoerper": [],
+    #     "wand_fl":    5.46,
+    #     "wand_kreis": "wand",
+    #     "dp":         None,
+    #     "bemerkung":  "Wandheizung Hypoplan 5,46m²",
+    # },
+
+    # Raum mit HK + Wandheizung kombiniert:
+    # {
+    #     "nr":       0.004,
+    #     "name":     "Bad",
+    #     "gs":       "EG",
+    #     "flaeche":  0.00,
+    #     "theta_i":  24,
+    #     "bauteile": [ ... ],
+    #     "heizkoerper": [
+    #         {"typ": "Typ11", "breite": 1500, "hoehe": 360, "q_norm": 712, "kreis": "hk"},
+    #     ],
+    #     "wand_fl":    2.50,
+    #     "wand_kreis": "wand",
+    #     "dp":         None,
+    #     "bemerkung":  "HK + Wandheizung 2,50m²",
+    # },
+
+    # ── OBERGESCHOSS / KELLER / DACHGESCHOSS ────────────────────────────────
+    # Räume hier nach gleichem Schema ergänzen.
+    # Nr-Präfix:  OG = 1.00x   KG = -1.00x   DG = 2.00x
+
 ]
+
+# ── Checkliste vor dem Generieren ──────────────────────────────────────────────
+#   [ ] Alle <PLATZHALTER> ersetzt
+#   [ ] θe für den Standort korrekt (DIN/TRY-Tabelle prüfen)
+#   [ ] Raumhöhen pro Geschoss gesetzt
+#   [ ] VL/RL je Kreis realistisch (Spreizung 5 K typisch, 2 K bei kleiner Heizlast)
+#   [ ] Jede Außenwand mit fx=1.0, Erdreich fx=0.8, unbeheizt fx=0.5
+#   [ ] Q_Norm je HK aus Herstellerkatalog (75/65/20) – keine Schätzwerte
+#   [ ] wand_fl gesetzt wo Hypoplan/FBH vorhanden, sonst 0
+#   [ ] Räume mit hoher Heizlast (Bad, Eltern) priorisiert prüfen
+#   [ ] WP-Leistung > Σ ΦHL des Gebäudes

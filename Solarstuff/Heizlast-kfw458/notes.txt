@@ -14,3 +14,14 @@ https://www.danfoss.com/de-de/about-danfoss/news/dhs/hydraulischer-abgleich/
 https://www.danfoss.com/de-de/markets/buildings-commercial/dhs/hydronic-balancing-and-control/hydronic-balancing-static-dynamic-automatic/
 
 
+pumpe 1.5m über fertiger boden kg
+2.2m im eg 
+40cm boden
+
+lambda eu10l
+wilopara 25/6 stufe 1 betriebsmodus Differenzdruck
+variabel Δp-v
+(I, II, III)
+vordruck 0.5bar
+
+

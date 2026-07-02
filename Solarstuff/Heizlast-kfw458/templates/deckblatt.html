@@ -40,11 +40,19 @@
 
 <h3>Auslegungsparameter</h3>
 <table>
-  <tr><th>Vorlauftemperatur VL</th>       <td class="val">{{ parameter.vl }} °C</td></tr>
-  <tr><th>Rücklauftemperatur RL</th>      <td class="val">{{ parameter.rl }} °C</td></tr>
-  <tr><th>Mittlere HW-Temperatur tm</th>  <td class="val">{{ parameter.tm }} °C</td></tr>
-  <tr><th>Norm-Außentemperatur θe</th>    <td class="val">{{ parameter.theta_e }} °C</td></tr>
-  <tr><th>Spreizung</th>                  <td class="val">{{ parameter.dt_spreiz }} K</td></tr>
+  {% if parameter.kreise %}
+    {% for name, k in parameter.kreise.items() %}
+  <tr>
+    <th>Kreis {{ name }} – VL / RL / tm</th>
+    <td class="val">{{ k.vl }} °C / {{ k.rl }} °C / {{ "%.1f"|format(k.tm) }} °C &nbsp; (ΔT = {{ k.spreiz }} K)</td>
+  </tr>
+    {% endfor %}
+  {% else %}
+  <tr><th>Vorlauftemperatur VL</th>  <td class="val">{{ parameter.vl }} °C</td></tr>
+  <tr><th>Rücklauftemperatur RL</th> <td class="val">{{ parameter.rl }} °C</td></tr>
+  <tr><th>Mittlere tm</th>           <td class="val">{{ parameter.tm }} °C</td></tr>
+  {% endif %}
+  <tr><th>Norm-Außentemperatur θe</th> <td class="val">{{ parameter.theta_e }} °C</td></tr>
 </table>
 
 <h3>Gesamtergebnis</h3>
@@ -74,6 +82,41 @@
     </tr>
   </tbody>
 </table>
+
+{% if waermeerzeuger %}
+<h3>Wärmeerzeuger</h3>
+<table>
+  {% if waermeerzeuger.hersteller or waermeerzeuger.modell %}
+  <tr><th>Hersteller / Modell</th>
+      <td class="val">{{ waermeerzeuger.hersteller }} {{ waermeerzeuger.modell }}</td></tr>
+  {% endif %}
+  {% if waermeerzeuger.heizleistung %}
+  <tr><th>Heizleistung</th>           <td class="val">{{ waermeerzeuger.heizleistung }}</td></tr>
+  {% endif %}
+  {% if waermeerzeuger.kaeltemittel %}
+  <tr><th>Kältemittel</th>            <td>{{ waermeerzeuger.kaeltemittel }}</td></tr>
+  {% endif %}
+  {% if waermeerzeuger.scop_55 %}
+  <tr><th>SCOP</th>                   <td>{{ waermeerzeuger.scop_55 }}</td></tr>
+  {% endif %}
+</table>
+{% endif %}
+
+{% if vordruck or pumpe %}
+<h3>Anlagen-Vordruck &amp; Pumpe</h3>
+<table>
+  {% if vordruck %}
+  <tr><th>Statische Höhe (Pumpe → höchster HK)</th>
+      <td class="val">{{ vordruck.h_statisch_m }} m</td></tr>
+  <tr><th>Empfohlener Vordruck (kalte Anlage)</th>
+      <td class="val">{{ "%.2f"|format(vordruck.vordruck_bar) }} bar</td></tr>
+  {% endif %}
+  {% if pumpe and pumpe.fabrikat %}
+  <tr><th>Heizungspumpe</th>
+      <td>{{ pumpe.fabrikat }}{% if pumpe.modus %}, {{ pumpe.modus }}{% endif %}{% if pumpe.stufe %}, Stufe {{ pumpe.stufe }}{% endif %}</td></tr>
+  {% endif %}
+</table>
+{% endif %}
 
 <h3>Blätter in dieser Dokumentation</h3>
 <table>

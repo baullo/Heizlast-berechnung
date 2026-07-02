@@ -129,6 +129,16 @@
       θi = {{ r.theta_i }} °C  &nbsp;|&nbsp;
       Δθ = {{ r.theta_i - parameter.theta_e }} K  &nbsp;|&nbsp;
       n = {{ r.n_min }} h⁻¹
+      {% if r.heizkoerper_calc %}
+        &nbsp;|&nbsp; tm_HK = {{ "%.1f"|format(r.tm_real) }} °C
+        &nbsp;|&nbsp; RL_HK = {{ "%.1f"|format(r.rl_real) }} °C
+        &nbsp;|&nbsp; ΔT_HK = {{ "%.1f"|format(r.dt_real) }} K
+        &nbsp;|&nbsp; v_HK = {{ "%.2f"|format(r.v_ms) }} m/s
+      {% endif %}
+      {% if r.wand_fl and r.wand_fl > 0 and r.tm_wand is defined %}
+        &nbsp;|&nbsp; tm_Wand = {{ "%.1f"|format(r.tm_wand) }} °C
+        &nbsp;|&nbsp; ΔT_Wand = {{ "%.1f"|format(r.dt_neu_wand) }} K
+      {% endif %}
     </span>
   </div>
 
@@ -161,7 +171,7 @@
           HT = Σ(A×U×fx) = {{ "%.4f"|format(r.ht) }} W/K
         </td>
         <td></td>
-        <td>{{ "%.2f"|format(r.ht * (r.theta_i - parameter.theta_e)) }}</td>
+        <td>{{ "%.2f"|format(r.bauteile_calc | sum(attribute='phi_t')) }}</td>
       </tr>
       <tr style="background:#fafafa">
         <td class="typ" style="color:#888">LÜ</td>
@@ -170,7 +180,7 @@
         </td>
         <td colspan="3"></td>
         <td style="color:#555">{{ "%.4f"|format(r.hv) }}</td>
-        <td><strong>{{ "%.2f"|format(r.hv * (r.theta_i - parameter.theta_e)) }}</strong></td>
+        <td><strong>{{ "%.2f"|format(r.phi_v) if r.phi_v is defined else "%.2f"|format(r.hv * (r.theta_i - parameter.theta_e)) }}</strong></td>
       </tr>
     </tbody>
   </table>

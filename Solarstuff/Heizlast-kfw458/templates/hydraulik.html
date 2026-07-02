@@ -42,7 +42,6 @@
   .klein  { color: #c00000; }
   .mitgh  { color: #777; font-style: italic; }
 
-  .eingabe { background: #ffffc0; }
 
   .form { font-size: 6pt; color: #555; margin-top: 8px; font-style: italic; }
 </style>
@@ -51,12 +50,15 @@
 
 <h1>Hydraulischer Abgleich Verfahren B  |  {{ projekt.auftraggeber }}</h1>
 <div class="meta">
-  VL = {{ parameter.vl }} °C  &nbsp;|&nbsp;
-  RL = {{ parameter.rl }} °C  &nbsp;|&nbsp;
-  tm = {{ parameter.tm }} °C  &nbsp;|&nbsp;
-  Spreizung = {{ parameter.dt_spreiz }} K  &nbsp;|&nbsp;
-  ρ·cp_Wasser = {{ parameter.rcp_wasser }} Wh/(l·K)  &nbsp;|&nbsp;
-  Divisor = {{ "%.3f"|format(parameter.div_vol) }} Wh/l
+  {% if parameter.kreise %}
+    {% for name, k in parameter.kreise.items() %}
+      <strong>{{ name }}:</strong> VL={{ k.vl }}°C / RL={{ k.rl }}°C / tm={{ "%.1f"|format(k.tm) }}°C / ΔT={{ k.spreiz }}K
+      &nbsp;|&nbsp;
+    {% endfor %}
+  {% else %}
+    VL = {{ parameter.vl }} °C &nbsp;|&nbsp; RL = {{ parameter.rl }} °C &nbsp;|&nbsp; tm = {{ parameter.tm }} °C &nbsp;|&nbsp;
+  {% endif %}
+  ρ·cp_Wasser = {{ parameter.rcp_wasser }} Wh/(l·K)
 </div>
 
 <table>
@@ -71,11 +73,10 @@
       <th colspan="3">Wandheizung</th>
       <th rowspan="2">Q_WP<br>gesamt<br>(W)</th>
       <th rowspan="2">Reserve<br>(W)</th>
-      <th rowspan="2">OK?</th>
       <th rowspan="2">Q_Ausl.<br>(W)</th>
       <th rowspan="2">V_soll<br>(l/h)</th>
-      <th rowspan="2" class="eingabe">ve<br>Ventil-<br>einst.</th>
-      <th rowspan="2">dp<br>(mbar)</th>
+      <th rowspan="2">v<br>(m/s)</th>
+      <th rowspan="2">ve<br>Ventil-<br>einst.</th>
       <th rowspan="2">Bemerkung</th>
     </tr>
     <tr>
@@ -92,7 +93,7 @@
 
   {% for gs in geschosse %}
     <tr class="gs-header">
-      <td colspan="21">── {{ gs }}</td>
+      <td colspan="22">── {{ gs }}</td>
     </tr>
 
     {% for r in raeume if r.gs == gs %}
@@ -103,7 +104,7 @@
       <td class="center">{{ r.theta_i }}</td>
       <td>{{ "%.0f"|format(r.phi_hl) }}</td>
 
-      {# HK-Spalten — liest heizkoerper_calc aus generate.py #}
+      {# HK-Spalten — pro HK eine Zeile (mehrzeilig im td) #}
       <td class="left">
         {% if r.heizkoerper_calc %}
           {% for hk in r.heizkoerper_calc %}
@@ -114,34 +115,75 @@
       <td>
         {% if r.heizkoerper_calc %}
           {% for hk in r.heizkoerper_calc %}
-            {{ hk.q_norm if hk.q_norm else "–" }}{% if not loop.last %}<br>{% endif %}
+            {{ hk.q_norm if hk.q_norm else (hk.hk_q_norm if hk.hk_q_norm else "–") }}{% if not loop.last %}<br>{% endif %}
           {% endfor %}
         {% else %}–{% endif %}
       </td>
       <td>{{ r.n_exp if r.n_exp else "–" }}</td>
-      <td>{{ "%.0f"|format(r.q_wp_hk) if r.q_wp_hk else "–" }}</td>
+      <td>
+        {% if r.heizkoerper_calc %}
+          {% for hk in r.heizkoerper_calc %}
+            {{ "%.0f"|format(hk.q_wp) if hk.q_wp else "–" }}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
+        {% else %}–{% endif %}
+      </td>
 
-      {# Wand-Spalten #}
+      {# Wand-Spalten — ΔT_neu_wand statt r.dt_neu (das ist das HK-ΔT) #}
       <td>{{ r.wand_fl if r.wand_fl else "–" }}</td>
       <td>{{ "%.0f"|format(r.q_wp_wand) if r.q_wp_wand else "–" }}</td>
-      <td>{{ r.dt_neu }}</td>
+      <td>
+        {% if r.wand_fl and r.wand_fl > 0 and r.dt_neu_wand is defined %}
+          {{ "%.1f"|format(r.dt_neu_wand) }}
+        {% else %}–{% endif %}
+      </td>
 
       {# Ergebnis-Spalten #}
       <td>{{ "%.0f"|format(r.q_wp_gesamt) }}</td>
       <td>
-        {% if r.reserve >= 0 %}<span class="ok">+{{ "%.0f"|format(r.reserve) }}</span>
+        {% if r.status == "○ mitgeheizt" %}<span class="mitgh">○</span>
+        {% elif r.reserve > 0 %}<span class="ok">+{{ "%.0f"|format(r.reserve) }}</span>
+        {% elif r.reserve == 0 %}<span class="ok">0</span>
+        {% elif r.reserve >= -100 %}<span class="grenz">{{ "%.0f"|format(r.reserve) }}</span>
         {% else %}<span class="klein">{{ "%.0f"|format(r.reserve) }}</span>{% endif %}
       </td>
-      <td class="center">
-        {% if r.status == "✓ OK" %}<span class="ok">✓</span>
-        {% elif r.status == "~ Grenz" %}<span class="grenz">~</span>
-        {% elif r.status == "✗ zu klein" %}<span class="klein">✗</span>
-        {% else %}<span class="mitgh">○</span>{% endif %}
-      </td>
       <td>{{ "%.0f"|format(r.q_ausl) }}</td>
-      <td>{{ "%.1f"|format(r.v_soll) }}</td>
-      <td class="eingabe center">{{ r.ve if r.ve is not none else "–" }}</td>
-      <td class="center">{{ r.dp if r.dp is not none else "–" }}</td>
+
+      {# V_soll — pro HK + Wand getrennt + Σ Raum #}
+      <td>
+        {% if r.heizkoerper_calc %}
+          {% for hk in r.heizkoerper_calc %}
+            {{ "%.1f"|format(hk.v_soll) }}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
+          {% if r.v_soll_wand and r.v_soll_wand > 0 %}
+            <br>{{ "%.1f"|format(r.v_soll_wand) }}</span>
+          {% endif %}
+          {% if (r.heizkoerper_calc|length > 1) or (r.v_soll_wand and r.v_soll_wand > 0) %}
+            <br><strong>Σ {{ "%.1f"|format(r.v_soll) }}</strong>
+          {% endif %}
+        {% else %}{{ "%.1f"|format(r.v_soll) }}{% endif %}
+      </td>
+
+
+
+      {# v_ms — pro HK #}
+      <td>
+        {% if r.heizkoerper_calc %}
+          {% for hk in r.heizkoerper_calc %}
+            {{ "%.2f"|format(hk.v_ms) }}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
+        {% else %}–{% endif %}
+      </td>
+
+      {# ve — pro HK #}
+      <td class="center">
+        {% if r.heizkoerper_calc %}
+          {% for hk in r.heizkoerper_calc %}
+            {{ hk.ve if hk.ve is not none else "–" }}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
+        {% else %}–{% endif %}
+      </td>
+
+      
       <td class="left">{{ r.bemerkung if r.bemerkung else "" }}</td>
     </tr>
     {% endfor %}
@@ -150,12 +192,12 @@
       <td colspan="3" class="left">SUMME {{ gs }}</td>
       <td>–</td>
       <td>{{ "%.0f"|format(summen[gs].phi_hl) }}</td>
-      <td colspan="9">–</td>
+      <td colspan="7">–</td>
       <td>{{ "%.0f"|format(summen[gs].q_wp_gesamt) }}</td>
-      <td>–</td><td>–</td>
       <td>–</td>
-      <td>{{ "%.1f"|format(summen[gs].v_soll) }}</td>
-      <td colspan="3">–</td>
+      <td>{{ "%.0f"|format(summen[gs].q_ausl) }}</td>
+      <td><strong>Σ {{ "%.1f"|format(summen[gs].v_soll) }}</strong></td>
+      <td colspan="6">–</td>
     </tr>
   {% endfor %}
 
@@ -163,12 +205,12 @@
       <td colspan="3" class="left">SUMME GEBÄUDE</td>
       <td>–</td>
       <td>{{ "%.0f"|format(summen.gesamt.phi_hl) }}</td>
-      <td colspan="9">–</td>
+      <td colspan="7">–</td>
       <td>{{ "%.0f"|format(summen.gesamt.q_wp_gesamt) }}</td>
-      <td>–</td><td>–</td>
       <td>–</td>
-      <td>{{ "%.1f"|format(summen.gesamt.v_soll) }}</td>
-      <td colspan="3">–</td>
+      <td>{{ "%.0f"|format(summen.gesamt.q_ausl) }}</td>
+      <td><strong>Σ {{ "%.1f"|format(summen.gesamt.v_soll) }}</strong></td>
+      <td colspan="6">–</td>
     </tr>
 
   </tbody>
@@ -176,10 +218,12 @@
 
 <div class="form">
   Q_WP_HK = Q_Norm × (ΔT_neu / ΔT_norm)^n  &nbsp;|&nbsp;
-  ΔT_neu = tm − θi  &nbsp;|&nbsp;
+  ΔT_neu_HK = tm_HK − θi  &nbsp;|&nbsp;
+  ΔT_neu_Wand = tm_Wand − θi  &nbsp;|&nbsp;
   ΔT_norm = {{ parameter.dt_norm }} K  ({{ parameter.vl_norm }}/{{ parameter.rl_norm }}/{{ parameter.ti_norm }})  &nbsp;|&nbsp;
-  Q_WP_Wand = Fläche × {{ "%.3f"|format(parameter.hypo_steig) }} W/(m²·K) × ΔT_neu  &nbsp;|&nbsp;
-  V_soll = Q_Ausl / {{ "%.3f"|format(parameter.div_vol) }} Wh/l
+  Q_WP_Wand = Fläche × {{ "%.3f"|format(parameter.hypo_steig) }} W/(m²·K) × ΔT_neu_Wand  &nbsp;|&nbsp;
+  V_soll_HK = Q_HK / (ρcp × ΔT_HK-Kreis)  &nbsp;|&nbsp;
+  V_soll_Wand = Q_Wand / (ρcp × ΔT_Wand-Kreis)
 </div>
 
 </body>
